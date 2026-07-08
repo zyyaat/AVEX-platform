@@ -69,6 +69,7 @@ func main() {
                 {"support", "support.outbox"},
                 {"permissions", "permissions.outbox"},
                 {"settings", "settings.outbox"},
+                {"audit", "audit.outbox"},
         }
 
         // 6. Start a publisher worker for each module.

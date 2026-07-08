@@ -56,3 +56,8 @@ var PermissionsMigrations embed.FS
 //
 //go:embed settings
 var SettingsMigrations embed.FS
+
+// AuditMigrations embeds all SQL files under migrations/audit/.
+//
+//go:embed audit
+var AuditMigrations embed.FS

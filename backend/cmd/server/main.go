@@ -11,6 +11,8 @@ import (
         "syscall"
         "time"
 
+        "avex-backend/internal/modules/audit"
+        auditjobs "avex-backend/internal/modules/audit/jobs"
         "avex-backend/internal/modules/catalog"
         "avex-backend/internal/modules/dispatch"
         "avex-backend/internal/modules/financial"
@@ -115,6 +117,12 @@ func main() {
         }
         log.Info("settings migrations complete")
 
+        if err := database.RunUp(ctx, cfg.Database.URL, migrations.AuditMigrations, "audit", "audit"); err != nil {
+                log.Error("audit migrations failed", "error", err)
+                os.Exit(1)
+        }
+        log.Info("audit migrations complete")
+
         // 5. Wire modules.
         identityMod := identity.New(cfg, dbPool.Pool(), log)
         defer identityMod.Close()
@@ -164,6 +172,11 @@ func main() {
         defer settingsMod.Close()
         log.Info("settings module wired")
 
+        // Audit module (immutable audit log).
+        auditMod := audit.New(cfg, dbPool.Pool(), log)
+        defer auditMod.Close()
+        log.Info("audit module wired")
+
         // 5b. Connect to Redis bus for the realtime subscriber (consumes events
         // from orders/dispatch/financial and broadcasts to WebSocket clients).
         redisBus, err := bus.NewRedisBus(ctx, cfg.Redis, log)
@@ -192,6 +205,15 @@ func main() {
         }
         log.Info("notifications subscriber started")
 
+        // 5e. Start the audit event subscriber (listens to ALL module events).
+        auditInbox := auditMod.NewInbox()
+        auditSub := auditjobs.NewSubscriber(auditMod.Service(), redisBus, auditInbox, log)
+        if err := auditSub.Start(ctx); err != nil {
+                log.Error("audit subscriber start failed", "error", err)
+                os.Exit(1)
+        }
+        log.Info("audit subscriber started")
+
         // 6. Setup HTTP server.
         mux := http.NewServeMux()
         identityMod.RegisterRoutes(mux, cfg)
@@ -204,6 +226,7 @@ func main() {
         supportMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         permissionsMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         settingsMod.RegisterRoutes(mux, identityMod.JWTIssuer())
+        auditMod.RegisterRoutes(mux, identityMod.JWTIssuer())
 
         handler := httptransport.RequestID(mux)
         handler = httptransport.Logging(log)(handler)
