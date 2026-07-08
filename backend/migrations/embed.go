@@ -26,3 +26,8 @@ var CatalogMigrations embed.FS
 //
 //go:embed financial
 var FinancialMigrations embed.FS
+
+// DispatchMigrations embeds all SQL files under migrations/dispatch/.
+//
+//go:embed dispatch
+var DispatchMigrations embed.FS

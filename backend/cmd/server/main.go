@@ -12,6 +12,7 @@ import (
         "time"
 
         "avex-backend/internal/modules/catalog"
+        "avex-backend/internal/modules/dispatch"
         "avex-backend/internal/modules/financial"
         "avex-backend/internal/modules/identity"
         httptransport "avex-backend/internal/modules/identity/transport/http"
@@ -70,6 +71,12 @@ func main() {
         }
         log.Info("financial migrations complete")
 
+        if err := database.RunUp(ctx, cfg.Database.URL, migrations.DispatchMigrations, "dispatch", "dispatch"); err != nil {
+                log.Error("dispatch migrations failed", "error", err)
+                os.Exit(1)
+        }
+        log.Info("dispatch migrations complete")
+
         // 5. Wire modules.
         identityMod := identity.New(cfg, dbPool.Pool(), log)
         defer identityMod.Close()
@@ -88,12 +95,19 @@ func main() {
         defer financialMod.Close()
         log.Info("financial module wired")
 
+        // Dispatch module needs the Mapbox token from env.
+        mapboxToken := os.Getenv("MAPBOX_ACCESS_TOKEN")
+        dispatchMod := dispatch.New(cfg, dbPool.Pool(), log, mapboxToken)
+        defer dispatchMod.Close()
+        log.Info("dispatch module wired")
+
         // 6. Setup HTTP server.
         mux := http.NewServeMux()
         identityMod.RegisterRoutes(mux, cfg)
         ordersMod.RegisterRoutes(mux)
         catalogMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         financialMod.RegisterRoutes(mux, identityMod.JWTIssuer())
+        dispatchMod.RegisterRoutes(mux, identityMod.JWTIssuer())
 
         handler := httptransport.RequestID(mux)
         handler = httptransport.Logging(log)(handler)
