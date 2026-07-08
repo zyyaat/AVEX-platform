@@ -28,10 +28,12 @@ export const useAuth = create<AuthState>()(
         try {
           const result = await driverAuthAPI.login({ phone, password })
           setAuthToken(result.token)
+          // Driver login returns driver object, user login returns user object
+          const id = result.driver?.id || result.driver?.user_id || result.user?.id || ''
           set({
             token: result.token,
-            userID: result.user.id,
-            role: result.user.role,
+            userID: id,
+            role: 'driver',
             isAuthenticated: true,
             isLoading: false,
           })

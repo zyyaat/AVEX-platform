@@ -159,8 +159,8 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 
 export const driverAuthAPI = {
   login: (data: { phone: string; password: string }) =>
-    apiFetch<{ token: string; user: { id: string; subject: string; role: string } }>(
-      '/api/v1/auth/login', { method: 'POST', body: JSON.stringify(data) }
+    apiFetch<{ token: string; driver?: any; user?: any; must_change_password: boolean }>(
+      '/api/v1/auth/driver/login', { method: 'POST', body: JSON.stringify(data) }
     ),
   register: (data: { phone: string; password: string; name: string }) =>
     apiFetch<{ token: string }>(
