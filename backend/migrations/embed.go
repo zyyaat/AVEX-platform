@@ -31,3 +31,8 @@ var FinancialMigrations embed.FS
 //
 //go:embed dispatch
 var DispatchMigrations embed.FS
+
+// RealtimeMigrations embeds all SQL files under migrations/realtime/.
+//
+//go:embed realtime
+var RealtimeMigrations embed.FS

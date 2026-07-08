@@ -17,6 +17,9 @@ import (
         "avex-backend/internal/modules/identity"
         httptransport "avex-backend/internal/modules/identity/transport/http"
         "avex-backend/internal/modules/orders"
+        "avex-backend/internal/modules/realtime"
+        realtimejobs "avex-backend/internal/modules/realtime/jobs"
+        "avex-backend/internal/platform/bus"
         "avex-backend/internal/platform/config"
         "avex-backend/internal/platform/database"
         "avex-backend/internal/platform/logger"
@@ -77,6 +80,12 @@ func main() {
         }
         log.Info("dispatch migrations complete")
 
+        if err := database.RunUp(ctx, cfg.Database.URL, migrations.RealtimeMigrations, "realtime", "realtime"); err != nil {
+                log.Error("realtime migrations failed", "error", err)
+                os.Exit(1)
+        }
+        log.Info("realtime migrations complete")
+
         // 5. Wire modules.
         identityMod := identity.New(cfg, dbPool.Pool(), log)
         defer identityMod.Close()
@@ -101,6 +110,30 @@ func main() {
         defer dispatchMod.Close()
         log.Info("dispatch module wired")
 
+        // Realtime module (WebSocket hub).
+        realtimeMod := realtime.New(cfg, dbPool.Pool(), log)
+        defer realtimeMod.Close()
+        log.Info("realtime module wired")
+
+        // 5b. Connect to Redis bus for the realtime subscriber (consumes events
+        // from orders/dispatch/financial and broadcasts to WebSocket clients).
+        redisBus, err := bus.NewRedisBus(ctx, cfg.Redis, log)
+        if err != nil {
+                log.Error("redis bus connect failed (realtime subscriber)", "error", err)
+                os.Exit(1)
+        }
+        defer redisBus.Close()
+        log.Info("redis bus connected (realtime subscriber)")
+
+        // 5c. Start the realtime event subscriber.
+        realtimeInbox := realtimeMod.NewInbox()
+        realtimeSub := realtimejobs.NewSubscriber(realtimeMod.Service(), redisBus, realtimeInbox, log)
+        if err := realtimeSub.Start(ctx); err != nil {
+                log.Error("realtime subscriber start failed", "error", err)
+                os.Exit(1)
+        }
+        log.Info("realtime subscriber started")
+
         // 6. Setup HTTP server.
         mux := http.NewServeMux()
         identityMod.RegisterRoutes(mux, cfg)
@@ -108,6 +141,7 @@ func main() {
         catalogMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         financialMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         dispatchMod.RegisterRoutes(mux, identityMod.JWTIssuer())
+        realtimeMod.RegisterRoutes(mux, identityMod.JWTIssuer())
 
         handler := httptransport.RequestID(mux)
         handler = httptransport.Logging(log)(handler)
@@ -118,8 +152,8 @@ func main() {
                 Addr:         ":" + cfg.App.Port,
                 Handler:      handler,
                 ReadTimeout:  15 * time.Second,
-                WriteTimeout: 15 * time.Second,
-                IdleTimeout:  60 * time.Second,
+                WriteTimeout: 0, // 0 = no timeout (WebSocket connections are long-lived)
+                IdleTimeout:  120 * time.Second,
         }
 
         // 7. Start server.
