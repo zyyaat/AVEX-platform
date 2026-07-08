@@ -26,11 +26,14 @@ import (
         realtimejobs "avex-backend/internal/modules/realtime/jobs"
         "avex-backend/internal/modules/settings"
         "avex-backend/internal/modules/support"
+        "avex-backend/internal/modules/system"
         "avex-backend/internal/platform/bus"
         "avex-backend/internal/platform/config"
         "avex-backend/internal/platform/database"
         "avex-backend/internal/platform/logger"
         migrations "avex-backend/migrations"
+
+        "github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -177,6 +180,15 @@ func main() {
         defer auditMod.Close()
         log.Info("audit module wired")
 
+        // System module (health checks + system info).
+        // Create a dedicated Redis client for health checks.
+        sysRedisOpts, _ := redis.ParseURL(cfg.Redis.URL)
+        sysRedisClient := redis.NewClient(sysRedisOpts)
+        defer sysRedisClient.Close()
+        systemMod := system.New(cfg, dbPool.Pool(), sysRedisClient, settingsMod.Service())
+        defer systemMod.Close()
+        log.Info("system module wired")
+
         // 5b. Connect to Redis bus for the realtime subscriber (consumes events
         // from orders/dispatch/financial and broadcasts to WebSocket clients).
         redisBus, err := bus.NewRedisBus(ctx, cfg.Redis, log)
@@ -227,6 +239,7 @@ func main() {
         permissionsMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         settingsMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         auditMod.RegisterRoutes(mux, identityMod.JWTIssuer())
+        systemMod.RegisterRoutes(mux)
 
         handler := httptransport.RequestID(mux)
         handler = httptransport.Logging(log)(handler)
