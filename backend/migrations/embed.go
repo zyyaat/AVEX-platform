@@ -21,3 +21,8 @@ var OrdersMigrations embed.FS
 //
 //go:embed catalog
 var CatalogMigrations embed.FS
+
+// FinancialMigrations embeds all SQL files under migrations/financial/.
+//
+//go:embed financial
+var FinancialMigrations embed.FS
