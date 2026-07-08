@@ -16,3 +16,8 @@ var IdentityMigrations embed.FS
 //
 //go:embed orders
 var OrdersMigrations embed.FS
+
+// CatalogMigrations embeds all SQL files under migrations/catalog/.
+//
+//go:embed catalog
+var CatalogMigrations embed.FS

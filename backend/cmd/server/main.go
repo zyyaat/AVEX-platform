@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"avex-backend/internal/modules/catalog"
 	"avex-backend/internal/modules/identity"
 	httptransport "avex-backend/internal/modules/identity/transport/http"
 	"avex-backend/internal/modules/orders"
@@ -56,6 +57,12 @@ func main() {
 	}
 	log.Info("orders migrations complete")
 
+	if err := database.RunUp(ctx, cfg.Database.URL, migrations.CatalogMigrations, "catalog", "catalog"); err != nil {
+		log.Error("catalog migrations failed", "error", err)
+		os.Exit(1)
+	}
+	log.Info("catalog migrations complete")
+
 	// 5. Wire modules.
 	identityMod := identity.New(cfg, dbPool.Pool(), log)
 	defer identityMod.Close()
@@ -66,10 +73,15 @@ func main() {
 	defer ordersMod.Close()
 	log.Info("orders module wired")
 
+	catalogMod := catalog.New(cfg, dbPool.Pool(), log)
+	defer catalogMod.Close()
+	log.Info("catalog module wired")
+
 	// 6. Setup HTTP server.
 	mux := http.NewServeMux()
 	identityMod.RegisterRoutes(mux, cfg)
 	ordersMod.RegisterRoutes(mux)
+	catalogMod.RegisterRoutes(mux, identityMod.JWTIssuer())
 
 	handler := httptransport.RequestID(mux)
 	handler = httptransport.Logging(log)(handler)
