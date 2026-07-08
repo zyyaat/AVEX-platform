@@ -11,6 +11,34 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[workflow.Project]
+steps = ["backend", "driver"]
+
+[workflow.backend]
+type = "shell"
+command = """
+export DATABASE_URL="postgres://avex:avex@localhost:5432/avex_dev?sslmode=disable"
+export REDIS_URL="redis://localhost:6379/0"
+export JWT_SECRET="avex-secret-key-change-in-production-32chars"
+export JWT_ISSUER="avex"
+export MAPBOX_ACCESS_TOKEN="MAPBOX_PUBLIC_TOKEN_PLACEHOLDER"
+cd backend
+docker compose up -d postgres redis 2>/dev/null || true
+sleep 3
+go run ./cmd/server
+"""
+blockProgress = true
+
+[workflow.driver]
+type = "shell"
+command = """
+export PORT=5174
+export BASE_PATH=/
+cd artifacts/driver
+pnpm dev
+"""
+blockProgress = true
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
