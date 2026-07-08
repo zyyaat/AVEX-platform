@@ -68,6 +68,7 @@ func main() {
                 {"notifications", "notifications.outbox"},
                 {"support", "support.outbox"},
                 {"permissions", "permissions.outbox"},
+                {"settings", "settings.outbox"},
         }
 
         // 6. Start a publisher worker for each module.

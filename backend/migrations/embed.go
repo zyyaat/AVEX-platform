@@ -51,3 +51,8 @@ var SupportMigrations embed.FS
 //
 //go:embed permissions
 var PermissionsMigrations embed.FS
+
+// SettingsMigrations embeds all SQL files under migrations/settings/.
+//
+//go:embed settings
+var SettingsMigrations embed.FS
