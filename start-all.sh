@@ -1,8 +1,6 @@
 #!/bin/bash
-# AVEX Backend — Start Everything (PostgreSQL + Redis + Server + Worker)
+# AVEX Backend — Start Everything (PostgreSQL + Redis + Server + Worker + Driver App)
 # Usage: ./start-all.sh
-
-set -e
 
 echo "🚀 Starting AVEX Backend..."
 
@@ -38,20 +36,27 @@ echo "🔧 Starting API Server..."
 nohup go run ./cmd/server > server.log 2>&1 &
 SERVER_PID=$!
 
-# Wait for server to be ready
-for i in $(seq 1 20); do
+# Wait for server to be ready (up to 30 seconds)
+for i in $(seq 1 30); do
   if curl -s http://localhost:8080/health/live > /dev/null 2>&1; then
     echo "✅ API Server ready (PID: $SERVER_PID)"
     break
   fi
+  # Check if process died
+  if ! kill -0 $SERVER_PID 2>/dev/null; then
+    echo "❌ API Server process died!"
+    echo "=== Server Log (last 30 lines) ==="
+    tail -30 server.log
+    exit 1
+  fi
   sleep 1
 done
 
-# Check if server is actually running
+# Final check
 if ! curl -s http://localhost:8080/health/live > /dev/null 2>&1; then
-  echo "❌ API Server failed to start!"
-  echo "=== Server Log ==="
-  tail -20 server.log
+  echo "❌ API Server failed to start after 30 seconds!"
+  echo "=== Server Log (last 30 lines) ==="
+  tail -30 server.log
   exit 1
 fi
 
