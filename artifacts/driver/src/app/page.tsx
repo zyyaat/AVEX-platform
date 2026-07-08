@@ -23,7 +23,7 @@ export default function DriverHome() {
   const router = useRouter()
   const { isAuthenticated, logout, userID } = useAuth()
   const {
-    driver, offers, activeOrder,
+    driver, offers, activeOrder, error,
     fetchDriver, setOnline, setOffline, clear,
   } = useDriver()
 
@@ -32,6 +32,7 @@ export default function DriverHome() {
   const [activeOffer, setActiveOffer] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [bottomCardExpanded, setBottomCardExpanded] = useState(false)
+  const [mapReady, setMapReady] = useState(false)
 
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -40,21 +41,16 @@ export default function DriverHome() {
   // ===== WebSocket =====
   const { isConnected, subscribe } = useWebSocket({
     onMessage: (msg) => {
-      // Handle incoming WebSocket messages
       switch (msg.type) {
         case 'dispatch.offer_created':
-          // New offer — refresh offers
           useDriver.getState().refreshOffers()
           toast.info('عرض جديد متاح!')
-          // Haptic feedback
           if (navigator.vibrate) navigator.vibrate(200)
           break
         case 'order.status_changed':
-          // Order status changed — refresh active order
           useDriver.getState().refreshActiveOrder()
           break
         case 'driver.status_changed':
-          // Driver status changed — refresh driver
           useDriver.getState().fetchDriver()
           break
       }
@@ -80,16 +76,15 @@ export default function DriverHome() {
   // ===== Subscribe to WebSocket channels =====
   useEffect(() => {
     if (!isConnected || !driver) return
-    // Subscribe to the driver's own channel
     subscribe(`driver:${driver.id}`)
-    // If driver has an active order, subscribe to that too
     if (driver.current_order_id) {
       subscribe(`order:${driver.current_order_id}`)
     }
   }, [isConnected, driver, subscribe])
 
-  // ===== Initialize Mapbox =====
+  // ===== Initialize Mapbox (waits for bootChecked so the container exists) =====
   useEffect(() => {
+    if (!bootChecked) return
     if (!mapContainerRef.current || mapRef.current) return
 
     mapboxgl.accessToken = MAPBOX_TOKEN
@@ -104,11 +99,11 @@ export default function DriverHome() {
     map.addControl(new mapboxgl.NavigationControl(), 'top-left')
 
     map.on('load', () => {
-      // Try to get user's current location
+      setMapReady(true)
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            map.setCenter([pos.coords.longitude, pos.coords.latitude])
+            map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 })
           },
           () => {},
           { enableHighAccuracy: true, timeout: 5000 }
@@ -122,21 +117,14 @@ export default function DriverHome() {
       map.remove()
       mapRef.current = null
     }
-  }, [])
-
-  // ===== Update driver marker on map =====
-  useEffect(() => {
-    if (!mapRef.current || !driver) return
-    // Try to get driver location from the map or API
-    // For now, center on Cairo if no location
-  }, [driver])
+  }, [bootChecked]) // ← KEY FIX: depends on bootChecked
 
   // ===== Auto-refresh offers =====
   useEffect(() => {
     if (!driver || driver.status !== 'online') return
     const interval = setInterval(() => {
       useDriver.getState().refreshOffers()
-    }, 10000) // poll every 10s as fallback for WebSocket
+    }, 10000)
     return () => clearInterval(interval)
   }, [driver])
 
@@ -180,6 +168,16 @@ export default function DriverHome() {
       {/* ===== Full-screen Map ===== */}
       <div ref={mapContainerRef} className="absolute inset-0" />
 
+      {/* Map loading indicator */}
+      {!mapReady && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-0">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            <p className="text-sm text-gray-400">جاري تحميل الخريطة...</p>
+          </div>
+        </div>
+      )}
+
       {/* ===== Top Bar ===== */}
       <div
         className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 h-14"
@@ -189,7 +187,6 @@ export default function DriverHome() {
           paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
       >
-        {/* Support */}
         <button
           onClick={() => router.push('/support')}
           className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
@@ -197,13 +194,11 @@ export default function DriverHome() {
           <Headphones className="w-5 h-5" />
         </button>
 
-        {/* Driver name + status */}
         <div className="flex items-center gap-2">
           <span className="text-white font-medium text-sm">المندوب</span>
           <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-400' : 'bg-gray-400'} animate-pulse`} />
         </div>
 
-        {/* Menu */}
         <button
           onClick={() => setDrawerOpen(true)}
           className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
@@ -217,7 +212,7 @@ export default function DriverHome() {
         onClick={() => {
           if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((pos) => {
-              mapRef.current?.setCenter([pos.coords.longitude, pos.coords.latitude])
+              mapRef.current?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 15 })
             })
           }
         }}
@@ -229,7 +224,7 @@ export default function DriverHome() {
       {/* ===== Online/Offline toggle ===== */}
       <button
         onClick={handleToggleOnline}
-        disabled={togglingOnline}
+        disabled={togglingOnline || !driver}
         className="absolute bottom-32 right-4 z-10 flex items-center gap-2 px-4 h-10 rounded-full shadow-lg font-medium text-sm transition-all active:scale-95 disabled:opacity-50"
         style={{
           backgroundColor: isOnline ? '#FF6B35' : '#fff',
@@ -257,7 +252,7 @@ export default function DriverHome() {
           >
             <div className="flex items-center justify-between mb-2">
               <p className="text-gray-800 text-sm font-medium">
-                {isOnline ? 'لا يوجد طلبات حالياً' : 'أنت غير متصل'}
+                {!driver ? 'جاري تحميل البيانات...' : isOnline ? 'لا يوجد طلبات حالياً' : 'أنت غير متصل'}
               </p>
               <button
                 onClick={() => setBottomCardExpanded(!bottomCardExpanded)}
@@ -267,12 +262,14 @@ export default function DriverHome() {
               </button>
             </div>
             <p className="text-gray-500 text-xs">
-              {isOnline
-                ? 'يمكنك الانتظار للحصول على طلب جديد'
-                : 'اضغط على زر "متصل" للبدء في استقبال الطلبات'}
+              {!driver
+                ? 'يرجى الانتظار...'
+                : isOnline
+                  ? 'يمكنك الانتظار للحصول على طلب جديد'
+                  : 'اضغط على زر "متصل" للبدء في استقبال الطلبات'}
             </p>
 
-            {bottomCardExpanded && (
+            {bottomCardExpanded && driver && (
               <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <Clock className="w-4 h-4" />
@@ -284,8 +281,15 @@ export default function DriverHome() {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <User className="w-4 h-4" />
-                  <span>التقييم: {driver?.rating.toFixed(1) || '5.0'} ⭐</span>
+                  <span>التقييم: {driver?.rating?.toFixed(1) || '5.0'} ⭐</span>
                 </div>
+              </div>
+            )}
+
+            {/* Error display */}
+            {error && (
+              <div className="mt-2 text-xs text-red-500">
+                {error}
               </div>
             )}
           </motion.div>
@@ -294,7 +298,7 @@ export default function DriverHome() {
 
       {/* ===== Offer Modal ===== */}
       <AnimatePresence>
-        {activeOffer && (
+        {activeOffer && offers.find((o) => o.id === activeOffer) && (
           <OfferModal
             offer={offers.find((o) => o.id === activeOffer)!}
             onClose={() => setActiveOffer(null)}

@@ -48,7 +48,7 @@ export const useDriver = create<DriverState>((set, get) => ({
 
   setOnline: async () => {
     const { driver } = get()
-    if (!driver) return
+    if (!driver) throw new Error('بيانات المندوب غير متاحة')
     try {
       const updated = await driverAPI.goOnline(driver.id)
       set({ driver: updated, error: null })
@@ -60,7 +60,7 @@ export const useDriver = create<DriverState>((set, get) => ({
 
   setOffline: async () => {
     const { driver } = get()
-    if (!driver) return
+    if (!driver) throw new Error('بيانات المندوب غير متاحة')
     try {
       const updated = await driverAPI.goOffline(driver.id)
       set({ driver: updated, error: null })
