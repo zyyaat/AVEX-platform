@@ -17,7 +17,7 @@ import { ActiveDelivery } from '@/components/ActiveDelivery'
 import { SideDrawer } from '@/components/SideDrawer'
 import { toast } from 'sonner'
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || ''
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'MAPBOX_PUBLIC_TOKEN_PLACEHOLDER'
 
 export default function DriverHome() {
   const router = useRouter()

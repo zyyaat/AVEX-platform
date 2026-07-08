@@ -28,9 +28,12 @@ export const useAuth = create<AuthState>()(
         try {
           const result = await driverAuthAPI.login({ phone, password })
           setAuthToken(result.token)
+          // The Go backend returns { token, user: { id, ... } }
+          const userID = result.user?.id || ''
+          console.log('Login success, userID:', userID)
           set({
             token: result.token,
-            userID: result.user?.id || '',
+            userID,
             role: 'driver',
             isAuthenticated: true,
             isLoading: false,

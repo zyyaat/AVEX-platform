@@ -38,11 +38,11 @@ export const useDriver = create<DriverState>((set, get) => ({
     const auth = useAuth.getState()
     if (!auth.userID) return
     try {
-      // Try to get driver by user_id
       const driver = await driverAPI.getDriverByUserID(auth.userID)
       set({ driver, error: null })
     } catch (err: any) {
-      set({ error: err.message })
+      console.error('fetchDriver error:', err.message)
+      set({ error: err.message, driver: null })
     }
   },
 
