@@ -19,7 +19,7 @@ CREATE TABLE permissions.permissions (
     resource    VARCHAR(50)  NOT NULL,
     action      VARCHAR(50)  NOT NULL,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    CONSTRAINT chk_perm_name CHECK (name ~ '^[a-z_*]+\.[a-z_*]+\.[a-z_*]+$')
+    CONSTRAINT chk_perm_name CHECK (name ~ '^[a-z_*]+(\.[a-z_*]+){1,2}$')
 );
 CREATE INDEX idx_permissions_module ON permissions.permissions (module);
 
