@@ -1,7 +1,7 @@
 // AVEX Driver — API client for Go backend
 // Connects directly to the Go backend (no Next.js proxy).
 
-const API_BASE = ''  // Empty = same origin (Vite proxy handles /api/* → localhost:8080)
+const API_BASE = import.meta.env.VITE_API_BASE || ''
 
 let authToken: string | null = null
 
