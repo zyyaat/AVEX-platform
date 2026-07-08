@@ -46,3 +46,8 @@ var NotificationsMigrations embed.FS
 //
 //go:embed support
 var SupportMigrations embed.FS
+
+// PermissionsMigrations embeds all SQL files under migrations/permissions/.
+//
+//go:embed permissions
+var PermissionsMigrations embed.FS
