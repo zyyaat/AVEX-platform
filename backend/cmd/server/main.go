@@ -21,6 +21,7 @@ import (
         "avex-backend/internal/modules/orders"
         "avex-backend/internal/modules/realtime"
         realtimejobs "avex-backend/internal/modules/realtime/jobs"
+        "avex-backend/internal/modules/support"
         "avex-backend/internal/platform/bus"
         "avex-backend/internal/platform/config"
         "avex-backend/internal/platform/database"
@@ -94,6 +95,12 @@ func main() {
         }
         log.Info("notifications migrations complete")
 
+        if err := database.RunUp(ctx, cfg.Database.URL, migrations.SupportMigrations, "support", "support"); err != nil {
+                log.Error("support migrations failed", "error", err)
+                os.Exit(1)
+        }
+        log.Info("support migrations complete")
+
         // 5. Wire modules.
         identityMod := identity.New(cfg, dbPool.Pool(), log)
         defer identityMod.Close()
@@ -127,6 +134,11 @@ func main() {
         notificationsMod := notifications.New(cfg, dbPool.Pool(), log)
         defer notificationsMod.Close()
         log.Info("notifications module wired")
+
+        // Support module (tickets + messages).
+        supportMod := support.New(cfg, dbPool.Pool(), log)
+        defer supportMod.Close()
+        log.Info("support module wired")
 
         // 5b. Connect to Redis bus for the realtime subscriber (consumes events
         // from orders/dispatch/financial and broadcasts to WebSocket clients).
@@ -165,6 +177,7 @@ func main() {
         dispatchMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         realtimeMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         notificationsMod.RegisterRoutes(mux, identityMod.JWTIssuer())
+        supportMod.RegisterRoutes(mux, identityMod.JWTIssuer())
 
         handler := httptransport.RequestID(mux)
         handler = httptransport.Logging(log)(handler)

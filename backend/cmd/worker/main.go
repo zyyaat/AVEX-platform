@@ -66,6 +66,7 @@ func main() {
                 {"financial", "financial.outbox"},
                 {"dispatch", "dispatch.outbox"},
                 {"notifications", "notifications.outbox"},
+                {"support", "support.outbox"},
         }
 
         // 6. Start a publisher worker for each module.

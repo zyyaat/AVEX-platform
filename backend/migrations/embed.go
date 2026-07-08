@@ -41,3 +41,8 @@ var RealtimeMigrations embed.FS
 //
 //go:embed notifications
 var NotificationsMigrations embed.FS
+
+// SupportMigrations embeds all SQL files under migrations/support/.
+//
+//go:embed support
+var SupportMigrations embed.FS
