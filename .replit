@@ -100,6 +100,7 @@ timeoutMs = 20000
 APP_ENV = "development"
 JWT_ISSUER = "avex"
 REDIS_URL = "redis://127.0.0.1:6379/0"
+JWT_SECRET = "44eaa6900b18640ecc365a3b5175019ad5f29e631ec4003b8ca9f403d06667002277f6a449ccd2713e11916bbf17e825"
 
 [nix]
 packages = ["run"]

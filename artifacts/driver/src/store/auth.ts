@@ -28,10 +28,10 @@ export const useAuth = create<AuthState>()(
         try {
           const result = await driverAuthAPI.login({ phone, password })
           setAuthToken(result.token)
-          // The Go backend returns { token, user: { id, ... } }
-          const userID = result.user?.id || ''
+          // The Go backend returns { token, driver: { id, ... } } for driver logins.
+          const userID = result.driver?.id || ''
           if (!userID) {
-            console.error('Login: no user.id in response', result)
+            console.error('Login: no driver.id in response', result)
             throw new Error('فشل تسجيل الدخول — استجابة غير صحيحة من الخادم')
           }
           console.log('Login success, userID:', userID)

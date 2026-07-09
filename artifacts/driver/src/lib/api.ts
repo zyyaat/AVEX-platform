@@ -159,8 +159,8 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 
 export const driverAuthAPI = {
   login: (data: { phone: string; password: string }) =>
-    apiFetch<{ token: string; user?: any; must_change_password: boolean }>(
-      '/api/v1/auth/login', { method: 'POST', body: JSON.stringify(data) }
+    apiFetch<{ token: string; driver?: any; must_change_password: boolean }>(
+      '/api/v1/auth/driver/login', { method: 'POST', body: JSON.stringify(data) }
     ),
   register: (data: { phone: string; password: string; name: string }) =>
     apiFetch<{ token: string }>(
@@ -205,7 +205,7 @@ export const driverAPI = {
   getOrder: (orderID: string) =>
     apiFetch<ActiveOrder>(`/api/v1/orders/${orderID}`),
   listDriverOrders: (driverID: string, limit = 50, offset = 0) =>
-    apiFetch<{ items: ActiveOrder[]; total: number }>(`/api/v1/orders?driver_id=${driverID}&limit=${limit}&offset=${offset}`),
+    apiFetch<{ items: ActiveOrder[]; total: number }>(`/api/v1/orders/driver/${driverID}?limit=${limit}&offset=${offset}`),
   
   // Order lifecycle (driver actions)
   markPickedUp: (orderID: string, driverID: string, pickupPhotoURL?: string) =>
