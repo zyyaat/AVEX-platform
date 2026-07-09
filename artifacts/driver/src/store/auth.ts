@@ -30,6 +30,10 @@ export const useAuth = create<AuthState>()(
           setAuthToken(result.token)
           // The Go backend returns { token, user: { id, ... } }
           const userID = result.user?.id || ''
+          if (!userID) {
+            console.error('Login: no user.id in response', result)
+            throw new Error('فشل تسجيل الدخول — استجابة غير صحيحة من الخادم')
+          }
           console.log('Login success, userID:', userID)
           set({
             token: result.token,
