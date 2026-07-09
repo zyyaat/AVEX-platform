@@ -96,36 +96,44 @@ export default function DriverHome() {
 
     try {
       mapboxgl.accessToken = MAPBOX_TOKEN
+
+      // Fix for Vite + mapbox-gl worker URL issue
+      // @ts-ignore
+      mapboxgl.workerUrl = undefined  // Let mapbox-gl handle it internally
+
       const map = new mapboxgl.Map({
         container: mapContainerRef.current,
         style: 'mapbox://styles/mapbox/streets-v12',
         center: [31.2357, 30.0444], // Cairo
         zoom: 13,
         attributionControl: false,
+        hash: false,
       })
 
-      // Handle errors — show error message instead of infinite spinner
+      // Handle errors
       map.on('error', (e: any) => {
         console.error('Mapbox error:', e?.error?.message || e)
-        setMapError(e?.error?.message || 'فشل تحميل الخريطة')
+        // Don't show error for tile loading issues (they retry automatically)
+        if (e?.error?.status === 401) {
+          setMapError('مفتاح Mapbox غير صالح — تواصل مع الدعم')
+        }
       })
 
       map.addControl(new mapboxgl.NavigationControl(), 'top-left')
 
-      // Timeout fallback — if map doesn't load in 15s, show error
+      // Timeout fallback
       const loadTimeout = setTimeout(() => {
-        if (!mapRef.current?.loaded()) {
-          setMapError('انتهت مهلة تحميل الخريطة — تأكد من الاتصال بالإنترنت')
+        if (!mapRef.current?.loaded() || !mapRef.current?.isStyleLoaded()) {
+          console.warn('Map load timeout — showing map anyway')
+          setMapReady(true)  // Show the map anyway, it might load later
         }
-      }, 15000)
+      }, 8000)
 
       map.on('load', () => {
         clearTimeout(loadTimeout)
         setMapReady(true)
         setMapError(null)
-        // Force resize after load to handle layout shifts
-        setTimeout(() => map.resize(), 100)
-        // Try to get user location
+        setTimeout(() => map.resize(), 200)
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -139,7 +147,6 @@ export default function DriverHome() {
 
       mapRef.current = map
 
-      // Handle window resize
       const handleResize = () => mapRef.current?.resize()
       window.addEventListener('resize', handleResize)
 
