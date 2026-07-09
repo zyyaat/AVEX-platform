@@ -6,8 +6,6 @@ import {
   Loader2, ChevronDown, Phone, MessageCircle, X,
   Store, User, Package,
 } from 'lucide-react'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
 import { useAuth } from '@/store/auth'
 import { useDriver } from '@/store/driver'
 import { useWebSocket } from '@/hooks/use-websocket'
@@ -17,7 +15,37 @@ import { ActiveDelivery } from '@/components/ActiveDelivery'
 import { SideDrawer } from '@/components/SideDrawer'
 import { toast } from 'sonner'
 
+// Load mapbox-gl from CDN to avoid Vite worker bundling issues
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'MAPBOX_PUBLIC_TOKEN_PLACEHOLDER'
+let mapboxgl: any = null
+
+// Dynamically load mapbox-gl from CDN
+function loadMapboxCSS() {
+  if (document.querySelector('#mapbox-gl-css')) return
+  const link = document.createElement('link')
+  link.id = 'mapbox-gl-css'
+  link.rel = 'stylesheet'
+  link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.5.2/mapbox-gl.css'
+  document.head.appendChild(link)
+}
+
+function loadMapboxJS(): Promise<any> {
+  if (mapboxgl) return Promise.resolve(mapboxgl)
+  if ((window as any).mapboxgl) {
+    mapboxgl = (window as any).mapboxgl
+    return Promise.resolve(mapboxgl)
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.5.2/mapbox-gl.js'
+    script.onload = () => {
+      mapboxgl = (window as any).mapboxgl
+      resolve(mapboxgl)
+    }
+    script.onerror = () => reject(new Error('Failed to load Mapbox GL JS'))
+    document.head.appendChild(script)
+  })
+}
 
 export default function DriverHome() {
   const router = useRouter()
@@ -89,76 +117,86 @@ export default function DriverHome() {
     }
   }, [isConnected, userID, driver, subscribe])
 
-  // ===== Initialize Mapbox =====
+  // ===== Initialize Mapbox (loaded from CDN) =====
   useEffect(() => {
     if (!bootChecked) return
     if (!mapContainerRef.current || mapRef.current) return
 
-    try {
-      mapboxgl.accessToken = MAPBOX_TOKEN
+    let cancelled = false
 
-      // Fix for Vite + mapbox-gl worker URL issue
-      // @ts-ignore
-      mapboxgl.workerUrl = undefined  // Let mapbox-gl handle it internally
+    loadMapboxCSS()
+    loadMapboxJS().then((mbgl) => {
+      if (cancelled || !mapContainerRef.current) return
 
-      const map = new mapboxgl.Map({
-        container: mapContainerRef.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: [31.2357, 30.0444], // Cairo
-        zoom: 13,
-        attributionControl: false,
-        hash: false,
-      })
+      try {
+        mbgl.accessToken = MAPBOX_TOKEN
+        const map = new mbgl.Map({
+          container: mapContainerRef.current,
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center: [31.2357, 30.0444],
+          zoom: 13,
+          attributionControl: false,
+        })
 
-      // Handle errors
-      map.on('error', (e: any) => {
-        console.error('Mapbox error:', e?.error?.message || e)
-        // Don't show error for tile loading issues (they retry automatically)
-        if (e?.error?.status === 401) {
-          setMapError('مفتاح Mapbox غير صالح — تواصل مع الدعم')
+        map.on('error', (e: any) => {
+          console.error('Mapbox error:', e?.error?.message || e)
+          if (e?.error?.status === 401) {
+            setMapError('مفتاح Mapbox غير صالح')
+          }
+        })
+
+        map.addControl(new mbgl.NavigationControl(), 'top-left')
+
+        const loadTimeout = setTimeout(() => {
+          if (!cancelled) {
+            console.warn('Map load timeout — showing map anyway')
+            setMapReady(true)
+          }
+        }, 8000)
+
+        map.on('load', () => {
+          clearTimeout(loadTimeout)
+          if (cancelled) return
+          setMapReady(true)
+          setMapError(null)
+          setTimeout(() => map.resize(), 200)
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 })
+              },
+              () => {},
+              { enableHighAccuracy: true, timeout: 5000 }
+            )
+          }
+        })
+
+        mapRef.current = map
+
+        const handleResize = () => mapRef.current?.resize()
+        window.addEventListener('resize', handleResize)
+
+        return () => {
+          clearTimeout(loadTimeout)
+          window.removeEventListener('resize', handleResize)
+          map.remove()
+          mapRef.current = null
         }
-      })
+      } catch (err: any) {
+        console.error('Map init error:', err)
+        setMapError(err.message || 'فشل تهيئة الخريطة')
+      }
+    }).catch((err) => {
+      console.error('Failed to load Mapbox GL JS:', err)
+      setMapError('فشل تحميل مكتبة الخريطة')
+    })
 
-      map.addControl(new mapboxgl.NavigationControl(), 'top-left')
-
-      // Timeout fallback
-      const loadTimeout = setTimeout(() => {
-        if (!mapRef.current?.loaded() || !mapRef.current?.isStyleLoaded()) {
-          console.warn('Map load timeout — showing map anyway')
-          setMapReady(true)  // Show the map anyway, it might load later
-        }
-      }, 8000)
-
-      map.on('load', () => {
-        clearTimeout(loadTimeout)
-        setMapReady(true)
-        setMapError(null)
-        setTimeout(() => map.resize(), 200)
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 })
-            },
-            () => {},
-            { enableHighAccuracy: true, timeout: 5000 }
-          )
-        }
-      })
-
-      mapRef.current = map
-
-      const handleResize = () => mapRef.current?.resize()
-      window.addEventListener('resize', handleResize)
-
-      return () => {
-        clearTimeout(loadTimeout)
-        window.removeEventListener('resize', handleResize)
-        map.remove()
+    return () => {
+      cancelled = true
+      if (mapRef.current) {
+        mapRef.current.remove()
         mapRef.current = null
       }
-    } catch (err: any) {
-      console.error('Map init error:', err)
-      setMapError(err.message || 'فشل تهيئة الخريطة')
     }
   }, [bootChecked])
 

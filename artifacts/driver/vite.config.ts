@@ -72,6 +72,9 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    hmr: {
+      overlay: false,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
