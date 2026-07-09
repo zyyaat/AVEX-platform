@@ -15,34 +15,25 @@ import { ActiveDelivery } from '@/components/ActiveDelivery'
 import { SideDrawer } from '@/components/SideDrawer'
 import { toast } from 'sonner'
 
-// Load mapbox-gl from CDN to avoid Vite worker bundling issues
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'MAPBOX_PUBLIC_TOKEN_PLACEHOLDER'
-let mapboxgl: any = null
+// ===== Mapbox CDN Loader =====
+const MAPBOX_TOKEN = 'MAPBOX_PUBLIC_TOKEN_PLACEHOLDER'
 
-// Dynamically load mapbox-gl from CDN
-function loadMapboxCSS() {
-  if (document.querySelector('#mapbox-gl-css')) return
-  const link = document.createElement('link')
-  link.id = 'mapbox-gl-css'
-  link.rel = 'stylesheet'
-  link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.5.2/mapbox-gl.css'
-  document.head.appendChild(link)
-}
-
-function loadMapboxJS(): Promise<any> {
-  if (mapboxgl) return Promise.resolve(mapboxgl)
-  if ((window as any).mapboxgl) {
-    mapboxgl = (window as any).mapboxgl
-    return Promise.resolve(mapboxgl)
+function loadMapbox(): Promise<any> {
+  // Load CSS
+  if (!document.querySelector('#mapbox-gl-css')) {
+    const link = document.createElement('link')
+    link.id = 'mapbox-gl-css'
+    link.rel = 'stylesheet'
+    link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.5.2/mapbox-gl.css'
+    document.head.appendChild(link)
   }
+  // Load JS
+  if ((window as any).mapboxgl) return Promise.resolve((window as any).mapboxgl)
   return new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.5.2/mapbox-gl.js'
-    script.onload = () => {
-      mapboxgl = (window as any).mapboxgl
-      resolve(mapboxgl)
-    }
-    script.onerror = () => reject(new Error('Failed to load Mapbox GL JS'))
+    script.onload = () => resolve((window as any).mapboxgl)
+    script.onerror = () => reject(new Error('Failed to load Mapbox'))
     document.head.appendChild(script)
   })
 }
@@ -52,7 +43,7 @@ export default function DriverHome() {
   const { isAuthenticated, userID } = useAuth()
   const {
     driver, offers, activeOrder, error,
-    fetchDriver, setOnline, setOffline, clear,
+    fetchDriver, setOnline, setOffline,
   } = useDriver()
 
   const [bootChecked, setBootChecked] = useState(false)
@@ -64,7 +55,7 @@ export default function DriverHome() {
   const [mapError, setMapError] = useState<string | null>(null)
 
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<mapboxgl.Map | null>(null)
+  const mapRef = useRef<any>(null)
 
   // ===== WebSocket =====
   const { isConnected, subscribe } = useWebSocket({
@@ -101,31 +92,21 @@ export default function DriverHome() {
     fetchDriver()
   }, [isAuthenticated, router, fetchDriver])
 
-  // ===== Subscribe to WebSocket channels =====
-  // Use the auth userID (identity driver ID) for channel subscription
-  // This must match what the backend broadcasts to
+  // ===== WebSocket subscribe =====
   useEffect(() => {
     if (!isConnected || !userID) return
-    // Subscribe to the user's own channel (matches WS auto-subscribe)
     subscribe(`user:${userID}`)
-    // Also subscribe to driver channel if we have the dispatch driver ID
-    if (driver?.id) {
-      subscribe(`driver:${driver.id}`)
-    }
-    if (driver?.current_order_id) {
-      subscribe(`order:${driver.current_order_id}`)
-    }
+    if (driver?.id) subscribe(`driver:${driver.id}`)
+    if (driver?.current_order_id) subscribe(`order:${driver.current_order_id}`)
   }, [isConnected, userID, driver, subscribe])
 
-  // ===== Initialize Mapbox (loaded from CDN) =====
+  // ===== Initialize Mapbox =====
   useEffect(() => {
-    if (!bootChecked) return
-    if (!mapContainerRef.current || mapRef.current) return
+    if (!bootChecked || !mapContainerRef.current || mapRef.current) return
 
     let cancelled = false
 
-    loadMapboxCSS()
-    loadMapboxJS().then((mbgl) => {
+    loadMapbox().then((mbgl) => {
       if (cancelled || !mapContainerRef.current) return
 
       try {
@@ -140,16 +121,13 @@ export default function DriverHome() {
 
         map.on('error', (e: any) => {
           console.error('Mapbox error:', e?.error?.message || e)
-          if (e?.error?.status === 401) {
-            setMapError('مفتاح Mapbox غير صالح')
-          }
         })
 
         map.addControl(new mbgl.NavigationControl(), 'top-left')
 
         const loadTimeout = setTimeout(() => {
           if (!cancelled) {
-            console.warn('Map load timeout — showing map anyway')
+            console.warn('Map timeout — showing anyway')
             setMapReady(true)
           }
         }, 8000)
@@ -162,9 +140,7 @@ export default function DriverHome() {
           setTimeout(() => map.resize(), 200)
           if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 })
-              },
+              (pos) => map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 }),
               () => {},
               { enableHighAccuracy: true, timeout: 5000 }
             )
@@ -184,11 +160,11 @@ export default function DriverHome() {
         }
       } catch (err: any) {
         console.error('Map init error:', err)
-        setMapError(err.message || 'فشل تهيئة الخريطة')
+        setMapError(err.message)
       }
     }).catch((err) => {
-      console.error('Failed to load Mapbox GL JS:', err)
-      setMapError('فشل تحميل مكتبة الخريطة')
+      console.error('Mapbox load failed:', err)
+      setMapError('فشل تحميل الخريطة')
     })
 
     return () => {
@@ -203,9 +179,7 @@ export default function DriverHome() {
   // ===== Auto-refresh offers =====
   useEffect(() => {
     if (!driver || driver.status !== 'online') return
-    const interval = setInterval(() => {
-      useDriver.getState().refreshOffers()
-    }, 10000)
+    const interval = setInterval(() => useDriver.getState().refreshOffers(), 10000)
     return () => clearInterval(interval)
   }, [driver])
 
@@ -246,19 +220,16 @@ export default function DriverHome() {
 
   return (
     <div className="min-h-dvh bg-white relative overflow-hidden" dir="rtl">
-      {/* ===== Full-screen Map ===== */}
+      {/* Map container */}
       <div ref={mapContainerRef} className="absolute inset-0" />
 
-      {/* Map loading / error states */}
+      {/* Map loading/error overlay */}
       {(!mapReady || mapError) && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-0">
           {mapError ? (
             <div className="text-center px-6">
               <p className="text-sm text-red-500 mb-3">⚠️ {mapError}</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="text-sm text-blue-500 underline"
-              >
+              <button onClick={() => window.location.reload()} className="text-sm text-blue-500 underline">
                 إعادة المحاولة
               </button>
             </div>
@@ -271,36 +242,30 @@ export default function DriverHome() {
         </div>
       )}
 
-      {/* ===== Top Bar ===== */}
+      {/* Top Bar */}
       <div
         className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 h-14"
-        style={{
-          backgroundColor: 'rgba(91, 192, 222, 0.95)',
-          backdropFilter: 'blur(8px)',
-          paddingTop: 'env(safe-area-inset-top, 0px)',
-        }}
+        style={{ backgroundColor: 'rgba(91, 192, 222, 0.95)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         <button
           onClick={() => router.push('/support')}
-          className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+          className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white"
         >
           <Headphones className="w-5 h-5" />
         </button>
-
         <div className="flex items-center gap-2">
           <span className="text-white font-medium text-sm">المندوب</span>
           <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-400' : 'bg-gray-400'} animate-pulse`} />
         </div>
-
         <button
           onClick={() => setDrawerOpen(true)}
-          className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+          className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white"
         >
           <Menu className="w-5 h-5" />
         </button>
       </div>
 
-      {/* ===== Recenter button ===== */}
+      {/* Recenter button */}
       <button
         onClick={() => {
           if (navigator.geolocation) {
@@ -309,30 +274,23 @@ export default function DriverHome() {
             })
           }
         }}
-        className="absolute bottom-32 left-4 z-10 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors"
+        className="absolute bottom-32 left-4 z-10 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center"
       >
         <Navigation className="w-5 h-5 text-gray-700" />
       </button>
 
-      {/* ===== Online/Offline toggle ===== */}
+      {/* Online/Offline toggle */}
       <button
         onClick={handleToggleOnline}
         disabled={togglingOnline || !driver}
         className="absolute bottom-32 right-4 z-10 flex items-center gap-2 px-4 h-10 rounded-full shadow-lg font-medium text-sm transition-all active:scale-95 disabled:opacity-50"
-        style={{
-          backgroundColor: isOnline ? '#FF6B35' : '#fff',
-          color: isOnline ? '#fff' : '#333',
-        }}
+        style={{ backgroundColor: isOnline ? '#FF6B35' : '#fff', color: isOnline ? '#fff' : '#333' }}
       >
-        {togglingOnline ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Power className="w-4 h-4" />
-        )}
+        {togglingOnline ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
         {isOnline ? 'متصل' : 'غير متصل'}
       </button>
 
-      {/* ===== Bottom Card ===== */}
+      {/* Bottom Card */}
       <div className="absolute bottom-0 left-0 right-0 z-10">
         {activeOrder ? (
           <ActiveDelivery />
@@ -347,10 +305,7 @@ export default function DriverHome() {
               <p className="text-gray-800 text-sm font-medium">
                 {!driver ? 'جاري تحميل البيانات...' : isOnline ? 'لا يوجد طلبات حالياً' : 'أنت غير متصل'}
               </p>
-              <button
-                onClick={() => setBottomCardExpanded(!bottomCardExpanded)}
-                className="text-gray-400"
-              >
+              <button onClick={() => setBottomCardExpanded(!bottomCardExpanded)} className="text-gray-400">
                 <ChevronDown className={`w-5 h-5 transition-transform ${bottomCardExpanded ? 'rotate-180' : ''}`} />
               </button>
             </div>
@@ -362,18 +317,15 @@ export default function DriverHome() {
                   : 'اضغط على زر "متصل" للبدء في استقبال الطلبات'}
             </p>
 
-            {/* Error display */}
             {error && (
-              <div className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded-lg">
-                ⚠️ {error}
-              </div>
+              <div className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded-lg">⚠️ {error}</div>
             )}
 
             {bottomCardExpanded && driver && (
               <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <Clock className="w-4 h-4" />
-                  <span>الشيفت الحالي: {new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>الشيفت: {new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <Package className="w-4 h-4" />
@@ -389,20 +341,17 @@ export default function DriverHome() {
         )}
       </div>
 
-      {/* ===== Offer Modal ===== */}
+      {/* Offer Modal */}
       <AnimatePresence>
         {activeOffer && offers.find((o) => o.id === activeOffer) && (
-          <OfferModal
-            offer={offers.find((o) => o.id === activeOffer)!}
-            onClose={() => setActiveOffer(null)}
-          />
+          <OfferModal offer={offers.find((o) => o.id === activeOffer)!} onClose={() => setActiveOffer(null)} />
         )}
       </AnimatePresence>
 
-      {/* ===== Side Drawer ===== */}
+      {/* Side Drawer */}
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
-      {/* ===== Connection indicator ===== */}
+      {/* Connection indicator */}
       {!isConnected && isOnline && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 bg-yellow-100 text-yellow-800 text-xs px-3 py-1 rounded-full shadow">
           جاري إعادة الاتصال...

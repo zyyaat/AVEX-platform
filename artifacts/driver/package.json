@@ -75,7 +75,5 @@
     "zod": "catalog:",
     "zustand": "^5.0.14"
   },
-  "dependencies": {
-    "mapbox-gl": "^3.25.0"
-  }
+  "dependencies": {}
 }
