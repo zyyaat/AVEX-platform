@@ -15,14 +15,12 @@ docker compose up -d postgres redis 2>/dev/null || true
 # Wait for PostgreSQL to be ready (up to 30 seconds)
 echo "⏳ Waiting for PostgreSQL..."
 for i in $(seq 1 30); do
-  if docker exec avex-postgres pg_isready -U avex -d avex_dev > /dev/null 2>&1; then
+  if docker exec avex-postgres psql -U avex -d avex_dev -c "SELECT 1" > /dev/null 2>&1; then
     echo "✅ PostgreSQL ready"
     break
   fi
   if [ $i -eq 30 ]; then
-    echo "❌ PostgreSQL not ready after 30s"
-    docker compose logs postgres | tail -10
-    exit 1
+    echo "⚠️ PostgreSQL check timeout — trying to start anyway..."
   fi
   sleep 1
 done
