@@ -22,7 +22,15 @@ args = "Redis"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
+args = "Backend Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
 args = "Backend Worker"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Driver App"
 
 [[workflows.workflow]]
 name = "Redis"
@@ -31,6 +39,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "redis-server --port 6379 --save '' --appendonly no"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Backend Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && go run ./cmd/server"
 
 [workflows.workflow.metadata]
 outputType = "console"
@@ -46,45 +65,16 @@ args = "cd backend && go run ./cmd/worker"
 [workflows.workflow.metadata]
 outputType = "console"
 
-[workflow.Project]
-steps = ["server", "worker", "driver"]
+[[workflows.workflow]]
+name = "Driver App"
+author = "agent"
 
-[workflow.server]
-type = "shell"
-command = """
-export DATABASE_URL="postgres://avex:avex@localhost:5432/avex_dev?sslmode=disable"
-export REDIS_URL="redis://localhost:6379/0"
-export JWT_SECRET="avex-secret-key-change-in-production-32chars"
-export JWT_ISSUER="avex"
-export MAPBOX_ACCESS_TOKEN="MAPBOX_PUBLIC_TOKEN_PLACEHOLDER"
-cd backend
-docker compose up -d postgres redis 2>/dev/null || true
-sleep 5
-go run ./cmd/server
-"""
-blockProgress = true
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/driver && PORT=5174 BASE_PATH=/ pnpm dev"
 
-[workflow.worker]
-type = "shell"
-command = """
-export DATABASE_URL="postgres://avex:avex@localhost:5432/avex_dev?sslmode=disable"
-export REDIS_URL="redis://localhost:6379/0"
-cd backend
-sleep 8
-go run ./cmd/worker
-"""
-blockProgress = true
-
-[workflow.driver]
-type = "shell"
-command = """
-export PORT=5174
-export BASE_PATH=/
-cd artifacts/driver
-sleep 10
-pnpm dev
-"""
-blockProgress = true
+[workflows.workflow.metadata]
+outputType = "console"
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -101,6 +91,7 @@ APP_ENV = "development"
 JWT_ISSUER = "avex"
 REDIS_URL = "redis://127.0.0.1:6379/0"
 JWT_SECRET = "44eaa6900b18640ecc365a3b5175019ad5f29e631ec4003b8ca9f403d06667002277f6a449ccd2713e11916bbf17e825"
+MAPBOX_ACCESS_TOKEN = "MAPBOX_PUBLIC_TOKEN_PLACEHOLDER"
 
 [nix]
 packages = ["run"]
