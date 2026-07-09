@@ -1,7 +1,7 @@
 // AVEX Driver — API client for Go backend
 // Connects directly to the Go backend (no Next.js proxy).
 
-const API_BASE = import.meta.env.VITE_API_BASE || ''
+const API_BASE = import.meta.env.VITE_API_BASE || ''  // Empty = relative URLs through Vite proxy
 
 let authToken: string | null = null
 
@@ -131,10 +131,10 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const res = await fetch(url, { ...options, headers })
   
   if (res.status === 401) {
-    // Token expired — clear and redirect to login
     setAuthToken(null)
     if (typeof window !== 'undefined') {
-      window.location.href = '/login'
+      const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+      window.location.href = `${base}/login`
     }
     throw new Error('انتهت الجلسة — يرجى تسجيل الدخول مرة أخرى')
   }
@@ -268,6 +268,10 @@ export const i18nAPI = {
 // ===== WEBSOCKET =====
 
 export function getWebSocketURL(token: string): string {
+  if (!API_BASE) {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${proto}//${window.location.host}/api/v1/ws?token=${encodeURIComponent(token)}`
+  }
   const wsBase = API_BASE.replace('http://', 'ws://').replace('https://', 'wss://')
   return `${wsBase}/api/v1/ws?token=${encodeURIComponent(token)}`
 }

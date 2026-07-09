@@ -21,7 +21,7 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'MAPBOX_PUBLIC_TOKEN_P
 
 export default function DriverHome() {
   const router = useRouter()
-  const { isAuthenticated, logout, userID } = useAuth()
+  const { isAuthenticated, userID } = useAuth()
   const {
     driver, offers, activeOrder, error,
     fetchDriver, setOnline, setOffline, clear,
@@ -33,10 +33,10 @@ export default function DriverHome() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [bottomCardExpanded, setBottomCardExpanded] = useState(false)
   const [mapReady, setMapReady] = useState(false)
+  const [mapError, setMapError] = useState<string | null>(null)
 
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
-  const driverMarkerRef = useRef<mapboxgl.Marker | null>(null)
 
   // ===== WebSocket =====
   const { isConnected, subscribe } = useWebSocket({
@@ -74,50 +74,86 @@ export default function DriverHome() {
   }, [isAuthenticated, router, fetchDriver])
 
   // ===== Subscribe to WebSocket channels =====
+  // Use the auth userID (identity driver ID) for channel subscription
+  // This must match what the backend broadcasts to
   useEffect(() => {
-    if (!isConnected || !driver) return
-    subscribe(`driver:${driver.id}`)
-    if (driver.current_order_id) {
+    if (!isConnected || !userID) return
+    // Subscribe to the user's own channel (matches WS auto-subscribe)
+    subscribe(`user:${userID}`)
+    // Also subscribe to driver channel if we have the dispatch driver ID
+    if (driver?.id) {
+      subscribe(`driver:${driver.id}`)
+    }
+    if (driver?.current_order_id) {
       subscribe(`order:${driver.current_order_id}`)
     }
-  }, [isConnected, driver, subscribe])
+  }, [isConnected, userID, driver, subscribe])
 
-  // ===== Initialize Mapbox (waits for bootChecked so the container exists) =====
+  // ===== Initialize Mapbox =====
   useEffect(() => {
     if (!bootChecked) return
     if (!mapContainerRef.current || mapRef.current) return
 
-    mapboxgl.accessToken = MAPBOX_TOKEN
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [31.2357, 30.0444], // Cairo
-      zoom: 13,
-      attributionControl: false,
-    })
+    try {
+      mapboxgl.accessToken = MAPBOX_TOKEN
+      const map = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [31.2357, 30.0444], // Cairo
+        zoom: 13,
+        attributionControl: false,
+      })
 
-    map.addControl(new mapboxgl.NavigationControl(), 'top-left')
+      // Handle errors — show error message instead of infinite spinner
+      map.on('error', (e: any) => {
+        console.error('Mapbox error:', e?.error?.message || e)
+        setMapError(e?.error?.message || 'فشل تحميل الخريطة')
+      })
 
-    map.on('load', () => {
-      setMapReady(true)
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 })
-          },
-          () => {},
-          { enableHighAccuracy: true, timeout: 5000 }
-        )
+      map.addControl(new mapboxgl.NavigationControl(), 'top-left')
+
+      // Timeout fallback — if map doesn't load in 15s, show error
+      const loadTimeout = setTimeout(() => {
+        if (!mapRef.current?.loaded()) {
+          setMapError('انتهت مهلة تحميل الخريطة — تأكد من الاتصال بالإنترنت')
+        }
+      }, 15000)
+
+      map.on('load', () => {
+        clearTimeout(loadTimeout)
+        setMapReady(true)
+        setMapError(null)
+        // Force resize after load to handle layout shifts
+        setTimeout(() => map.resize(), 100)
+        // Try to get user location
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 })
+            },
+            () => {},
+            { enableHighAccuracy: true, timeout: 5000 }
+          )
+        }
+      })
+
+      mapRef.current = map
+
+      // Handle window resize
+      const handleResize = () => mapRef.current?.resize()
+      window.addEventListener('resize', handleResize)
+
+      return () => {
+        clearTimeout(loadTimeout)
+        window.removeEventListener('resize', handleResize)
+        map.remove()
+        mapRef.current = null
       }
-    })
-
-    mapRef.current = map
-
-    return () => {
-      map.remove()
-      mapRef.current = null
+    } catch (err: any) {
+      console.error('Map init error:', err)
+      setMapError(err.message || 'فشل تهيئة الخريطة')
     }
-  }, [bootChecked]) // ← KEY FIX: depends on bootChecked
+  }, [bootChecked])
 
   // ===== Auto-refresh offers =====
   useEffect(() => {
@@ -168,13 +204,25 @@ export default function DriverHome() {
       {/* ===== Full-screen Map ===== */}
       <div ref={mapContainerRef} className="absolute inset-0" />
 
-      {/* Map loading indicator */}
-      {!mapReady && (
+      {/* Map loading / error states */}
+      {(!mapReady || mapError) && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-0">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-            <p className="text-sm text-gray-400">جاري تحميل الخريطة...</p>
-          </div>
+          {mapError ? (
+            <div className="text-center px-6">
+              <p className="text-sm text-red-500 mb-3">⚠️ {mapError}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="text-sm text-blue-500 underline"
+              >
+                إعادة المحاولة
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+              <p className="text-sm text-gray-400">جاري تحميل الخريطة...</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -269,6 +317,13 @@ export default function DriverHome() {
                   : 'اضغط على زر "متصل" للبدء في استقبال الطلبات'}
             </p>
 
+            {/* Error display */}
+            {error && (
+              <div className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded-lg">
+                ⚠️ {error}
+              </div>
+            )}
+
             {bottomCardExpanded && driver && (
               <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
                 <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -283,13 +338,6 @@ export default function DriverHome() {
                   <User className="w-4 h-4" />
                   <span>التقييم: {driver?.rating?.toFixed(1) || '5.0'} ⭐</span>
                 </div>
-              </div>
-            )}
-
-            {/* Error display */}
-            {error && (
-              <div className="mt-2 text-xs text-red-500">
-                {error}
               </div>
             )}
           </motion.div>

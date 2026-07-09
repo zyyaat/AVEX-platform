@@ -36,12 +36,16 @@ export const useDriver = create<DriverState>((set, get) => ({
 
   fetchDriver: async () => {
     const auth = useAuth.getState()
-    if (!auth.userID) return
+    if (!auth.userID) {
+      console.warn('fetchDriver: no userID — login may have failed')
+      set({ error: 'لم يتم العثور على معرف المندوب — يرجى تسجيل الدخول مرة أخرى', driver: null })
+      return
+    }
     try {
       const driver = await driverAPI.getDriverByUserID(auth.userID)
       set({ driver, error: null })
     } catch (err: any) {
-      console.error('fetchDriver error:', err.message)
+      console.error('fetchDriver error:', err.message, 'userID:', auth.userID)
       set({ error: err.message, driver: null })
     }
   },
