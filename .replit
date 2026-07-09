@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "go-1.25", "python-3.11"]
+modules = ["go-1.21", "nodejs-20", "web", "bash"]
 
 [deployment]
 router = "application"
@@ -65,3 +65,4 @@ timeoutMs = 20000
 
 [nix]
 packages = ["run"]
+channel = "stable-25_05"
