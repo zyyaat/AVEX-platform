@@ -124,7 +124,7 @@ func Load() (*Config, error) {
                 App: AppConfig{
                         Name:       getEnv("APP_NAME", "avex-backend"),
                         Env:        Environment(getEnv("APP_ENV", "development")),
-                        Port:       getEnv("APP_PORT", "8080"),
+                        Port:       getEnv("APP_PORT", getEnv("PORT", "8080")),
                         InstanceID: getEnv("APP_INSTANCE_ID", "node-1"),
                         LogLevel:   getEnv("APP_LOG_LEVEL", "info"),
                         LogFormat:  getEnv("APP_LOG_FORMAT", "json"),

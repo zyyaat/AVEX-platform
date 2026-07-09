@@ -12,21 +12,26 @@ paths = ["/api"]
 [services.development]
 run = "pnpm --filter @workspace/api-server run dev"
 
+[services.env]
+PORT = "8080"
+APP_ENV = "development"
+REDIS_URL = "redis://127.0.0.1:6379/0"
+JWT_ISSUER = "avex"
+
 [services.production]
 
 [services.production.build]
-args = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
+args = ["bash", "-c", "cd backend && go build -o ../artifacts/api-server/avex-server ./cmd/server"]
 
 [services.production.build.env]
-NODE_ENV = "production"
+CGO_ENABLED = "0"
+GOOS = "linux"
 
 [services.production.run]
-# we don't run through pnpm to make startup faster in production
-args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
+args = ["artifacts/api-server/avex-server"]
 
 [services.production.run.env]
 PORT = "8080"
-NODE_ENV = "production"
 
 [services.production.health.startup]
-path = "/api/healthz"
+path = "/api/health"

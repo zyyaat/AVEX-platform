@@ -1,4 +1,4 @@
-modules = ["go-1.21", "nodejs-20", "web", "bash"]
+modules = ["nodejs-20", "web", "bash", "postgresql-16", "go-1.25"]
 
 [deployment]
 router = "application"
@@ -10,6 +10,41 @@ env = { "CI" = "true" }
 
 [workflows]
 runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Redis"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Backend Worker"
+
+[[workflows.workflow]]
+name = "Redis"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "redis-server --port 6379 --save '' --appendonly no"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Backend Worker"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && go run ./cmd/worker"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [workflow.Project]
 steps = ["server", "worker", "driver"]
@@ -62,6 +97,9 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
+APP_ENV = "development"
+JWT_ISSUER = "avex"
+REDIS_URL = "redis://127.0.0.1:6379/0"
 
 [nix]
 packages = ["run"]

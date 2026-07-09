@@ -6,6 +6,7 @@ import (
         "errors"
         "fmt"
         "net/http"
+	"net/url"
         "os"
         "os/signal"
         "syscall"
@@ -253,6 +254,15 @@ func main() {
         auditMod.RegisterRoutes(mux, identityMod.JWTIssuer())
         systemMod.RegisterRoutes(mux)
         localizationMod.RegisterRoutes(mux, identityMod.JWTIssuer())
+
+        // Alias health checks under /api so the Replit artifact proxy (which
+        // only forwards the /api/* path prefix to this service) can reach them.
+        mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
+                mux.ServeHTTP(w, &http.Request{Method: r.Method, URL: &url.URL{Path: "/healthz"}, Header: r.Header})
+        })
+        mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
+                mux.ServeHTTP(w, &http.Request{Method: r.Method, URL: &url.URL{Path: "/health"}, Header: r.Header})
+        })
 
         handler := httptransport.RequestID(mux)
         handler = httptransport.Logging(log)(handler)
