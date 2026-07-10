@@ -72,7 +72,7 @@ export default function AdminDashboard() {
         {/* Status breakdown */}
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <h3 className="font-bold text-sm mb-3">طلبات اليوم حسب الحالة</h3>
-          {Object.keys(stats.byStatus).length > 0 ? (
+          {Object.keys(stats.byStatus || {}).length > 0 ? (
             <div className="space-y-2">
               {Object.entries(stats.byStatus).map(([st, count]: any) => (
                 <div key={st} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-100 last:border-0">
