@@ -7,8 +7,15 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    adminAPI.getDashboard().then(setStats).finally(() => setLoading(false))
-    const id = setInterval(() => adminAPI.getDashboard().then(setStats), 30000)
+    adminAPI.getDashboard()
+      .then(setStats)
+      .catch(() => setStats({
+        todayOrders: 0, activeOrders: 0, onlineDrivers: 0,
+        todayRevenue: 0, platformMargin: 0, openTickets: 0,
+        totalCustomers: 0, totalRestaurants: 0, byStatus: {},
+      }))
+      .finally(() => setLoading(false))
+    const id = setInterval(() => adminAPI.getDashboard().then(setStats).catch(() => {}), 30000)
     return () => clearInterval(id)
   }, [])
 
