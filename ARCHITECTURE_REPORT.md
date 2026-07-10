@@ -1,5 +1,11 @@
 # 📐 تقرير معماري شامل — منصة AVEX للتوصيل
 
+> ⚠️ **تحذير — هذا التقرير قديم (OUTDATED)**
+>
+> يصف هذا التقرير المعمارية القديمة قبل إعادة الهيكلة (SQL strings، بدون migrations، CORS `*`، ServeMux واحد). الباكند الحالي في `backend/` يستخدم معمارية **Modular Monolith** (Domain → Port → Service → Repository → Transport) مع goose migrations و Redis و Outbox pattern و OpenTelemetry.
+>
+> **المرجع المعتمد الآن: [`backend/README.md`](backend/README.md)** — لا تعتمد على ما يلي في أي قرار تقني. (راجع issue #4)
+
 > المسار: `/home/z/my-project/AVEX6` · نوع التحليل: قراءة فقط · بدون أي تعديل على الكود
 
 ---
