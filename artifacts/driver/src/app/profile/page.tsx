@@ -45,7 +45,7 @@ export default function ProfilePage() {
           <p className="text-xs text-gray-500">توصيلة</p>
         </div>
         <div className="bg-white rounded-2xl p-4 text-center">
-          <p className="text-2xl font-bold">{driver?.rating?.toFixed(1) ?? "5.0" || '5.0'}</p>
+          <p className="text-2xl font-bold">{(driver?.rating ?? 0).toFixed(1)}</p>
           <p className="text-xs text-gray-500">تقييم</p>
         </div>
         <div className="bg-white rounded-2xl p-4 text-center">

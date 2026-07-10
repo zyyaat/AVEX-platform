@@ -19,7 +19,9 @@ export const useAuth = create<AuthState>()(
       login: async (phone, password) => {
         set({ isLoading: true })
         try {
-          const { token, agent } = await agentAuthAPI.login({ phone, password })
+          const result = await agentAuthAPI.login({ phone, password })
+    const { token } = result
+    const agent = result.user || result.agent
           setAuthToken(token)
           set({ token, agent, isAuthenticated: true, isLoading: false })
         } catch (e) { set({ isLoading: false }); throw e }

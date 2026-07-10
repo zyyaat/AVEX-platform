@@ -28,7 +28,10 @@ export const useAuth = create<AuthState>()(
       login: async (phone, password) => {
         set({ isLoading: true })
         try {
-          const { token, mustChangePassword, merchant } = await merchantAuthAPI.login({ phone, password })
+          const result = await merchantAuthAPI.login({ phone, password })
+    const { token } = result
+    const mustChangePassword = result.must_change_password ?? false
+    const merchant = result.user || result.merchant
           setAuthToken(token)
           set({
             token,

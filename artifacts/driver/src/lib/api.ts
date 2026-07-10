@@ -268,10 +268,6 @@ export const i18nAPI = {
 // ===== WEBSOCKET =====
 
 export function getWebSocketURL(token: string): string {
-  if (!API_BASE) {
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${proto}//${window.location.host}/api/v1/ws?token=${encodeURIComponent(token)}`
-  }
-  const wsBase = API_BASE.replace('http://', 'ws://').replace('https://', 'wss://')
-  return `${wsBase}/api/v1/ws?token=${encodeURIComponent(token)}`
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${proto}//${window.location.host}/api/v1/ws?token=${encodeURIComponent(token)}`
 }

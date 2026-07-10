@@ -1,4 +1,4 @@
-import React, { useReducer, useEffect } from 'react';
+import React, { useReducer, useEffect, useMemo } from 'react';
 import { useLocation, useParams as useWouterParams } from 'wouter';
 
 const NAV_EVENT = 'avex-navigate';
@@ -19,7 +19,7 @@ function dispatchNavigate() {
 
 /** Drop-in replacement for next/navigation useRouter */
 export function useRouter() {
-  return {
+  return useMemo(() => ({
     push(href: string) {
       const url = new URL(toFullPath(href), window.location.origin);
       window.history.pushState({}, '', url.pathname + url.search + url.hash);
@@ -34,7 +34,7 @@ export function useRouter() {
     forward() { window.history.forward(); },
     refresh() { window.location.reload(); },
     prefetch(_href: string) { /* no-op */ },
-  };
+  }), []);
 }
 
 /** Drop-in replacement for next/navigation usePathname.
