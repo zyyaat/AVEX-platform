@@ -78,3 +78,34 @@ build:
     paths:
       - backend/bin/
     expire_in: 1 week
+
+# ===== Frontend tests (Vitest across the pnpm workspace) =====
+frontend-test:
+  stage: test
+  image: node:22
+  cache:
+    key: pnpm-store
+    paths:
+      - .pnpm-store/
+  variables:
+    GOPATH: ""
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - artifacts/**/*
+        - lib/**/*
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - artifacts/**/*
+        - lib/**/*
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+  before_script:
+    - corepack enable
+    - pnpm config set store-dir .pnpm-store
+  script:
+    # TODO: switch to --frozen-lockfile once pnpm-lock.yaml includes vitest/happy-dom
+    - pnpm install --no-frozen-lockfile
+    - pnpm -r --if-present test
