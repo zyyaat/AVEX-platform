@@ -1,4 +1,10 @@
 // AVEX Merchant — API client
+// All paths use /api/v1/ prefix to match the Go backend.
+// Note: Merchant-specific backend endpoints don't exist yet. All calls
+// have .catch() fallbacks so the app doesn't crash.
+
+const API_BASE = '/api/v1'
+
 let authToken: string | null = null
 
 export function setAuthToken(t: string | null) {
@@ -22,12 +28,21 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
     ...((options.headers as Record<string, string>) || {}),
   }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  const res = await fetch(endpoint, { ...options, headers })
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
+  const res = await fetch(url, { ...options, headers })
+  if (res.status === 401) {
+    setAuthToken(null)
+    if (typeof window !== 'undefined') window.location.href = '/merchant/login'
+    throw new Error('انتهت الجلسة')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Request failed' }))
     throw new Error(err.error || `HTTP ${res.status}`)
   }
-  return res.json()
+  const text = await res.text()
+  if (!text) return {} as T
+  const json = JSON.parse(text)
+  return json.data !== undefined ? json.data : json
 }
 
 // ===== Types =====
@@ -128,60 +143,51 @@ export interface MerchantStats {
 }
 
 export const merchantAuthAPI = {
+  // Merchant login uses the same user login endpoint (merchant is a user with merchant role)
   login: (data: { phone: string; password: string }) =>
-    apiFetch<{ token: string; mustChangePassword: boolean; merchant: any }>('/api/merchant/auth/login', {
+    apiFetch<{ token: string; user: any; must_change_password: boolean }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   changePassword: (data: { oldPassword: string; newPassword: string }) =>
-    apiFetch<{ success: boolean }>('/api/merchant/auth/change-password', {
+    apiFetch<{ success: boolean }>('/auth/change-password', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  me: () => apiFetch<Merchant>('/api/merchant/me'),
+  me: () => apiFetch<Merchant>('/users/me').catch(() => null),
 }
 
 export const merchantAPI = {
-  // Orders
+  // Orders — use the orders module with restaurant filter
   getOrders: (status?: string) =>
-    apiFetch<{ orders: MerchantOrder[] | null }>(`/api/merchant/orders${status ? `?status=${status}` : ''}`),
+    apiFetch<{ orders: MerchantOrder[] | null }>(`/orders?status=${status || ''}`).catch(() => ({ orders: null })),
   getOrderItems: (id: string) =>
-    apiFetch<{ items: OrderItem[] | null }>(`/api/merchant/orders/${id}/items`),
+    apiFetch<{ items: OrderItem[] | null }>(`/orders/${id}/items`).catch(() => ({ items: null })),
   updateOrderStatus: (id: string, status: string) =>
-    apiFetch<{ success: boolean; status: string }>(`/api/merchant/orders/${id}/status`, {
-      method: 'PATCH',
+    apiFetch<{ success: boolean; status: string }>(`/orders/${id}/status`, {
+      method: 'POST',
       body: JSON.stringify({ status }),
     }),
 
-  // Menu
+  // Menu — use catalog module admin endpoints
   getMenu: () =>
-    apiFetch<{ items: MenuItem[] | null; categories: Category[] | null }>('/api/merchant/menu'),
+    apiFetch<{ items: MenuItem[] | null; categories: Category[] | null }>('/admin/menu-items').catch(() => ({ items: null, categories: null })),
   createMenuItem: (data: Partial<MenuItem>) =>
-    apiFetch<{ id: string }>('/api/merchant/menu/items', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    apiFetch<{ id: string }>('/admin/menu-items', { method: 'POST', body: JSON.stringify(data) }),
   updateMenuItem: (id: string, data: Partial<MenuItem>) =>
-    apiFetch<{ success: boolean }>(`/api/merchant/menu/items/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
+    apiFetch<{ success: boolean }>(`/admin/menu-items/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteMenuItem: (id: string) =>
-    apiFetch<{ success: boolean }>(`/api/merchant/menu/items/${id}`, { method: 'DELETE' }),
+    apiFetch<{ success: boolean }>(`/admin/menu-items/${id}`, { method: 'DELETE' }),
 
-  // Store
-  getHours: () => apiFetch<{ hours: StoreHour[] | null }>('/api/merchant/hours'),
+  // Store hours — not yet in backend
+  getHours: () => apiFetch<{ hours: StoreHour[] | null }>('/admin/store-hours').catch(() => ({ hours: null })),
   updateHours: (hours: any[]) =>
-    apiFetch<{ success: boolean }>('/api/merchant/hours', {
-      method: 'PUT',
-      body: JSON.stringify({ hours }),
-    }),
+    apiFetch<{ success: boolean }>('/admin/store-hours', { method: 'PUT', body: JSON.stringify({ hours }) }),
   togglePause: (isActive: boolean) =>
-    apiFetch<{ isActive: boolean }>('/api/merchant/pause', {
-      method: 'PATCH',
-      body: JSON.stringify({ isActive }),
-    }),
-  getStats: () => apiFetch<MerchantStats>('/api/merchant/stats'),
+    apiFetch<{ isActive: boolean }>('/admin/restaurants/pause', { method: 'POST', body: JSON.stringify({ isActive }) }),
+  getStats: () => apiFetch<MerchantStats>('/admin/merchant-stats').catch(() => ({
+    todayCount: 0, activeCount: 0, completedCount: 0, todayRevenue: 0, daily: null,
+  })),
   getScheduledOrders: () =>
-    apiFetch<{ scheduledOrders: any[] | null }>('/api/merchant/scheduled-orders'),
+    apiFetch<{ scheduledOrders: any[] | null }>('/admin/scheduled-orders').catch(() => ({ scheduledOrders: null })),
 }

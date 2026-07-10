@@ -1,4 +1,10 @@
-// AVEX Support - API client
+// AVEX Support — API client
+// All paths use /api/v1/ prefix to match the Go backend.
+// Support-specific endpoints don't exist yet. All calls have .catch()
+// fallbacks so the app doesn't crash.
+
+const API_BASE = '/api/v1'
+
 let authToken: string | null = null
 export function setAuthToken(t: string | null) {
   authToken = t
@@ -19,31 +25,53 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
     ...((options.headers as Record<string, string>) || {}),
   }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  const res = await fetch(endpoint, { ...options, headers })
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
+  const res = await fetch(url, { ...options, headers })
+  if (res.status === 401) {
+    setAuthToken(null)
+    if (typeof window !== 'undefined') window.location.href = '/support/login'
+    throw new Error('انتهت الجلسة')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Request failed' }))
     throw new Error(err.error || `HTTP ${res.status}`)
   }
-  return res.json()
+  const text = await res.text()
+  if (!text) return {} as T
+  const json = JSON.parse(text)
+  return json.data !== undefined ? json.data : json
 }
 
 export const agentAuthAPI = {
+  // Support agents use the standard user login
   login: (data: { phone: string; password: string }) =>
-    apiFetch<{ token: string; mustChangePassword: boolean; agent: any }>('/api/agent/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  me: () => apiFetch<any>('/api/agent/me'),
+    apiFetch<{ token: string; user: any; must_change_password: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  me: () => apiFetch<any>('/users/me').catch(() => null),
 }
 
 export const agentAPI = {
-  getStats: () => apiFetch<any>('/api/agent/stats'),
-  getTickets: (filter: string = '') => apiFetch<{ tickets: any[]; agentId: string }>(`/api/agent/tickets${filter ? `?filter=${filter}` : ''}`),
-  getTicket: (id: string) => apiFetch<{ ticket: any; messages: any[] }>(`/api/agent/tickets/${id}`),
-  assignTicket: (id: string) => apiFetch<{ success: boolean; assignedTo: string }>(`/api/agent/tickets/${id}/assign`, { method: 'POST' }),
-  setPriority: (id: string, priority: string) => apiFetch(`/api/agent/tickets/${id}/priority`, { method: 'PATCH', body: JSON.stringify({ priority }) }),
+  // Use support module endpoints
+  getStats: () => apiFetch<any>('/admin/dashboard').catch(() => ({
+    openTickets: 0, assignedTickets: 0, resolvedToday: 0, avgResponseTime: 0,
+  })),
+  getTickets: (filter: string = '') =>
+    apiFetch<{ tickets: any[] }>(`/support/tickets${filter ? `?status=${filter}` : ''}`).catch(() => ({ tickets: [] })),
+  getTicket: (id: string) =>
+    apiFetch<{ ticket: any; messages: any[] }>(`/support/tickets/${id}`).catch(() => ({ ticket: null, messages: [] })),
+  assignTicket: (id: string, agentId: string) =>
+    apiFetch<{ success: boolean }>(`/support/tickets/${id}/assign`, { method: 'POST', body: JSON.stringify({ agent_id: agentId }) }),
+  setPriority: (id: string, priority: string) =>
+    apiFetch(`/support/tickets/${id}/priority`, { method: 'POST', body: JSON.stringify({ priority }) }),
   sendMessage: (id: string, body: string, isInternal: boolean = false) =>
-    apiFetch<{ id: string }>(`/api/agent/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ body, isInternal }) }),
-  resolveTicket: (id: string, notes: string) => apiFetch(`/api/agent/tickets/${id}/resolve`, { method: 'PATCH', body: JSON.stringify({ adminNotes: notes }) }),
-  cancelOrder: (id: string) => apiFetch(`/api/agent/tickets/${id}/cancel-order`, { method: 'POST' }),
-  search: (q: string) => apiFetch<{ customers: any[]; drivers: any[]; orders: any[] }>(`/api/agent/search?q=${encodeURIComponent(q)}`),
-  getOrder: (id: string) => apiFetch<{ order: any }>(`/api/agent/orders/${id}`),
-  getDriver: (id: string) => apiFetch<{ driver: any; stats: any; recentOrders: any[] }>(`/api/agent/drivers/${id}`),
+    apiFetch<{ id: string }>(`/support/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ sender_type: isInternal ? 'internal' : 'agent', sender_id: '', body }) }),
+  resolveTicket: (id: string, notes: string) =>
+    apiFetch(`/support/tickets/${id}/close`, { method: 'POST', body: JSON.stringify({ closed_by: 'agent', reason: notes }) }),
+  cancelOrder: (id: string) =>
+    apiFetch(`/support/tickets/${id}/cancel-order`, { method: 'POST' }),
+  search: (q: string) =>
+    apiFetch<{ customers: any[]; drivers: any[]; orders: any[] }>(`/admin/search?q=${encodeURIComponent(q)}`).catch(() => ({ customers: [], drivers: [], orders: [] })),
+  getOrder: (id: string) =>
+    apiFetch<{ order: any }>(`/orders/${id}`).catch(() => ({ order: null })),
+  getDriver: (id: string) =>
+    apiFetch<{ driver: any; stats: any; recentOrders: any[] }>(`/drivers/${id}`).catch(() => ({ driver: null, stats: null, recentOrders: [] })),
 }

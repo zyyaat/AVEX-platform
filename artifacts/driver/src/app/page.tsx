@@ -106,7 +106,7 @@ export default function DriverHome() {
 
     let cancelled = false
 
-    loadMapbox().then((mbgl) => {
+    loadMapbox().then((mbgl: any) => {
       if (cancelled || !mapContainerRef.current) return
 
       try {
@@ -152,12 +152,7 @@ export default function DriverHome() {
         const handleResize = () => mapRef.current?.resize()
         window.addEventListener('resize', handleResize)
 
-        return () => {
-          clearTimeout(loadTimeout)
-          window.removeEventListener('resize', handleResize)
-          map.remove()
-          mapRef.current = null
-        }
+        // Cleanup is handled by the outer return below
       } catch (err: any) {
         console.error('Map init error:', err)
         setMapError(err.message)

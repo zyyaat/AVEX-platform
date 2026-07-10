@@ -1,7 +1,7 @@
 // AVEX Driver — API client for Go backend
 // Connects directly to the Go backend (no Next.js proxy).
 
-const API_BASE = import.meta.env.VITE_API_BASE || ''  // Empty = relative URLs through Vite proxy
+const API_BASE = '/api/v1'  // Always use /api/v1 prefix
 
 let authToken: string | null = null
 
@@ -160,11 +160,11 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 export const driverAuthAPI = {
   login: (data: { phone: string; password: string }) =>
     apiFetch<{ token: string; driver?: { id: string; name: string; status: string; vehicle_type: string }; must_change_password: boolean }>(
-      '/api/v1/auth/driver/login', { method: 'POST', body: JSON.stringify(data) }
+      '/auth/driver/login', { method: 'POST', body: JSON.stringify(data) }
     ),
   register: (data: { phone: string; password: string; name: string; vehicle_type?: string; license_number?: string; national_id?: string; auto_verify?: boolean }) =>
     apiFetch<{ token: string; driver?: any; must_change_password: boolean }>(
-      '/api/v1/auth/driver/register', { method: 'POST', body: JSON.stringify(data) }
+      '/auth/driver/register', { method: 'POST', body: JSON.stringify(data) }
     ),
 }
 
@@ -173,96 +173,96 @@ export const driverAuthAPI = {
 export const driverAPI = {
   // Driver profile
   getDriver: (driverID: string) =>
-    apiFetch<Driver>(`/api/v1/drivers/${driverID}`),
+    apiFetch<Driver>(`/drivers/${driverID}`),
   getDriverByUserID: (userID: string) =>
-    apiFetch<Driver>(`/api/v1/drivers?user_id=${userID}`),
+    apiFetch<Driver>(`/drivers?user_id=${userID}`),
   goOnline: (driverID: string) =>
-    apiFetch<Driver>(`/api/v1/drivers/${driverID}/online`, { method: 'POST' }),
+    apiFetch<Driver>(`/drivers/${driverID}/online`, { method: 'POST' }),
   goOffline: (driverID: string) =>
-    apiFetch<Driver>(`/api/v1/drivers/${driverID}/offline`, { method: 'POST' }),
+    apiFetch<Driver>(`/drivers/${driverID}/offline`, { method: 'POST' }),
 
   // Location
   updateLocation: (driverID: string, data: { lat: number; lng: number; bearing: number; speed: number; accuracy: number; captured_at: string }) =>
-    apiFetch<any>(`/api/v1/drivers/${driverID}/location`, { method: 'POST', body: JSON.stringify(data) }),
+    apiFetch<any>(`/drivers/${driverID}/location`, { method: 'POST', body: JSON.stringify(data) }),
   getLocation: (driverID: string) =>
-    apiFetch<DriverLocation>(`/api/v1/drivers/${driverID}/location`),
+    apiFetch<DriverLocation>(`/drivers/${driverID}/location`),
 
   // Nearby drivers
   findNearest: (lat: number, lng: number, radius: number, limit: number) =>
-    apiFetch<NearbyDriver[]>(`/api/v1/drivers/nearby?lat=${lat}&lng=${lng}&radius=${radius}&limit=${limit}`),
+    apiFetch<NearbyDriver[]>(`/drivers/nearby?lat=${lat}&lng=${lng}&radius=${radius}&limit=${limit}`),
 
   // Dispatch offers
   getOffer: (offerID: string) =>
-    apiFetch<DispatchOffer>(`/api/v1/dispatch/offers/${offerID}`),
+    apiFetch<DispatchOffer>(`/dispatch/offers/${offerID}`),
   acceptOffer: (offerID: string, driverID: string) =>
-    apiFetch<DispatchOffer>(`/api/v1/dispatch/offers/${offerID}/accept`, { method: 'POST', body: JSON.stringify({ driver_id: driverID }) }),
+    apiFetch<DispatchOffer>(`/dispatch/offers/${offerID}/accept`, { method: 'POST', body: JSON.stringify({ driver_id: driverID }) }),
   rejectOffer: (offerID: string, driverID: string, reason?: string) =>
-    apiFetch<DispatchOffer>(`/api/v1/dispatch/offers/${offerID}/reject`, { method: 'POST', body: JSON.stringify({ driver_id: driverID, reason: reason || '' }) }),
+    apiFetch<DispatchOffer>(`/dispatch/offers/${offerID}/reject`, { method: 'POST', body: JSON.stringify({ driver_id: driverID, reason: reason || '' }) }),
   listOffersByDriver: (driverID: string, limit = 50, offset = 0) =>
-    apiFetch<{ items: DispatchOffer[]; total: number }>(`/api/v1/dispatch/offers?driver_id=${driverID}&limit=${limit}&offset=${offset}`),
+    apiFetch<{ items: DispatchOffer[]; total: number }>(`/dispatch/offers?driver_id=${driverID}&limit=${limit}&offset=${offset}`),
 
   // Orders
   getOrder: (orderID: string) =>
-    apiFetch<ActiveOrder>(`/api/v1/orders/${orderID}`),
+    apiFetch<ActiveOrder>(`/orders/${orderID}`),
   listDriverOrders: (driverID: string, limit = 50, offset = 0) =>
-    apiFetch<{ items: ActiveOrder[]; total: number }>(`/api/v1/orders/driver/${driverID}?limit=${limit}&offset=${offset}`),
+    apiFetch<{ items: ActiveOrder[]; total: number }>(`/orders/driver/${driverID}?limit=${limit}&offset=${offset}`),
   
   // Order lifecycle (driver actions)
   markPickedUp: (orderID: string, driverID: string, pickupPhotoURL?: string) =>
-    apiFetch<ActiveOrder>(`/api/v1/orders/${orderID}/pickup`, { method: 'POST', body: JSON.stringify({ driver_id: driverID, pickup_photo_url: pickupPhotoURL || '' }) }),
+    apiFetch<ActiveOrder>(`/orders/${orderID}/pickup`, { method: 'POST', body: JSON.stringify({ driver_id: driverID, pickup_photo_url: pickupPhotoURL || '' }) }),
   markDelivered: (orderID: string, driverID: string, deliveryPhotoURL?: string) =>
-    apiFetch<ActiveOrder>(`/api/v1/orders/${orderID}/deliver`, { method: 'POST', body: JSON.stringify({ driver_id: driverID, delivery_photo_url: deliveryPhotoURL || '' }) }),
+    apiFetch<ActiveOrder>(`/orders/${orderID}/deliver`, { method: 'POST', body: JSON.stringify({ driver_id: driverID, delivery_photo_url: deliveryPhotoURL || '' }) }),
 
   // Admin: register new driver
   registerDriver: (data: { user_id: string; vehicle_type: string; license_plate: string; zone_ids: string[] }) =>
-    apiFetch<Driver>('/api/v1/admin/drivers', { method: 'POST', body: JSON.stringify(data) }),
+    apiFetch<Driver>('/admin/drivers', { method: 'POST', body: JSON.stringify(data) }),
 }
 
 // ===== CATALOG API (for restaurant info) =====
 
 export const catalogAPI = {
   getRestaurant: (restaurantID: string) =>
-    apiFetch<any>(`/api/v1/restaurants/${restaurantID}`),
+    apiFetch<any>(`/restaurants/${restaurantID}`),
 }
 
 // ===== FINANCIAL API (for wallet) =====
 
 export const financialAPI = {
   getWalletByOwner: (ownerType: string, ownerID: string) =>
-    apiFetch<any>(`/api/v1/wallets?owner_type=${ownerType}&owner_id=${ownerID}`),
+    apiFetch<any>(`/wallets?owner_type=${ownerType}&owner_id=${ownerID}`),
   listTransactions: (walletID: string, limit = 50, offset = 0) =>
-    apiFetch<{ items: any[]; total: number }>(`/api/v1/wallets/${walletID}/transactions?limit=${limit}&offset=${offset}`),
+    apiFetch<{ items: any[]; total: number }>(`/wallets/${walletID}/transactions?limit=${limit}&offset=${offset}`),
 }
 
 // ===== SUPPORT API =====
 
 export const supportAPI = {
   createTicket: (data: { user_id: string; subject: string; description: string; category: string; priority: string }) =>
-    apiFetch<any>('/api/v1/support/tickets', { method: 'POST', body: JSON.stringify(data) }),
+    apiFetch<any>('/support/tickets', { method: 'POST', body: JSON.stringify(data) }),
   getTicket: (id: string) =>
-    apiFetch<any>(`/api/v1/support/tickets/${id}`),
+    apiFetch<any>(`/support/tickets/${id}`),
   listMyTickets: (userID: string, limit = 50, offset = 0) =>
-    apiFetch<{ items: any[]; total: number }>(`/api/v1/support/tickets?user_id=${userID}&limit=${limit}&offset=${offset}`),
+    apiFetch<{ items: any[]; total: number }>(`/support/tickets?user_id=${userID}&limit=${limit}&offset=${offset}`),
   replyToTicket: (ticketID: string, data: { sender_type: string; sender_id: string; body: string }) =>
-    apiFetch<any>(`/api/v1/support/tickets/${ticketID}/messages`, { method: 'POST', body: JSON.stringify(data) }),
+    apiFetch<any>(`/support/tickets/${ticketID}/messages`, { method: 'POST', body: JSON.stringify(data) }),
   listMessages: (ticketID: string, limit = 50, offset = 0) =>
-    apiFetch<{ items: any[]; total: number }>(`/api/v1/support/tickets/${ticketID}/messages?limit=${limit}&offset=${offset}`),
+    apiFetch<{ items: any[]; total: number }>(`/support/tickets/${ticketID}/messages?limit=${limit}&offset=${offset}`),
 }
 
 // ===== SETTINGS API =====
 
 export const settingsAPI = {
   checkFeatureFlag: (name: string, userID: string) =>
-    apiFetch<{ name: string; enabled: boolean }>(`/api/v1/feature-flags/check?name=${name}&user_id=${userID}`),
+    apiFetch<{ name: string; enabled: boolean }>(`/feature-flags/check?name=${name}&user_id=${userID}`),
 }
 
 // ===== LOCALIZATION API =====
 
 export const i18nAPI = {
   translate: (lang: string, key: string) =>
-    apiFetch<{ key: string; value: string; lang: string; found: boolean }>(`/api/v1/i18n/translate?lang=${lang}&key=${encodeURIComponent(key)}`),
+    apiFetch<{ key: string; value: string; lang: string; found: boolean }>(`/i18n/translate?lang=${lang}&key=${encodeURIComponent(key)}`),
   bulkTranslate: (lang: string, keys: string[]) =>
-    apiFetch<{ language_code: string; translations: Record<string, any> }>(`/api/v1/i18n/translate/bulk`, { method: 'POST', body: JSON.stringify({ language_code: lang, keys }) }),
+    apiFetch<{ language_code: string; translations: Record<string, any> }>(`/i18n/translate/bulk`, { method: 'POST', body: JSON.stringify({ language_code: lang, keys }) }),
 }
 
 // ===== WEBSOCKET =====

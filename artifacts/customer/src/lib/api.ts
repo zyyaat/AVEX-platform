@@ -1,5 +1,7 @@
-// API client for AVEX Go backend
-// Uses Next.js proxy routes (/api/*) which forward to Go backend
+// AVEX Customer - API client
+// All paths use /api/v1/ prefix to match the Go backend.
+
+const API_BASE = '/api/v1'
 
 let authToken: string | null = null
 
@@ -36,79 +38,66 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
     ...((options.headers as Record<string, string>) || {}),
   }
   if (token) headers['Authorization'] = `Bearer ${token}`
-
-  const res = await fetch(endpoint, { ...options, headers })
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
+  const res = await fetch(url, { ...options, headers })
+  if (res.status === 401) {
+    setAuthToken(null)
+    if (typeof window !== 'undefined') window.location.href = '/login'
+    throw new Error('انتهت الجلسة')
+  }
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: 'Request failed' }))
     throw new Error(error.error || `HTTP ${res.status}`)
   }
-  return res.json()
+  const text = await res.text()
+  if (!text) return {} as T
+  const json = JSON.parse(text)
+  return json.data !== undefined ? json.data : json
 }
 
 export const authAPI = {
   register: (data: { name: string; phone: string; password: string; email?: string }) =>
-    apiFetch<{ token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+    apiFetch<{ token: string; user: User }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   login: (data: { phone: string; password: string }) =>
-    apiFetch<{ token: string; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  me: () => apiFetch<User>('/api/auth/me'),
+    apiFetch<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  me: () => apiFetch<User>('/users/me'),
 }
 
 export const menuAPI = {
-  getCategories: () => apiFetch<{ categories: any[] }>('/api/menu'),
-  getSettings: () => apiFetch<{ settings: Record<string, string> }>('/api/settings'),
-  getRestaurants: () => apiFetch<{ restaurants: any[] }>('/api/restaurants'),
-  getRestaurant: (id: string) => apiFetch<any>(`/api/restaurants/${id}`),
+  getCategories: () => apiFetch<{ categories: any[] }>('/categories').catch(() => ({ categories: [] })),
+  getRestaurants: () => apiFetch<{ restaurants: any[] }>('/restaurants').catch(() => ({ restaurants: [] })),
+  getRestaurant: (id: string) => apiFetch<any>(`/restaurants/${id}`),
+  getMenu: (restaurantId: string) => apiFetch<any>(`/restaurants/${restaurantId}/menu`),
 }
 
 export const ordersAPI = {
-  create: (data: any) => apiFetch<{ order: any }>('/api/orders', { method: 'POST', body: JSON.stringify(data) }),
-  getMyOrders: () => apiFetch<{ orders: any[] }>('/api/orders'),
-  trackByNumber: (orderNumber: string) => apiFetch<{ order: any }>(`/api/orders/track?number=${encodeURIComponent(orderNumber)}`),
+  create: (data: any) => apiFetch<{ order: any }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
+  getMyOrders: () => apiFetch<{ orders: any[] }>('/orders').catch(() => ({ orders: [] })),
+  trackByNumber: (orderNumber: string) => apiFetch<{ order: any }>(`/orders/track?number=${encodeURIComponent(orderNumber)}`),
 }
 
 export const couponsAPI = {
   validate: (code: string, subtotal: number) =>
-    apiFetch<{ valid: boolean; discount: number; code: string; descriptionAr: string }>('/api/coupons/validate', { method: 'POST', body: JSON.stringify({ code, subtotal }) }),
+    apiFetch<{ valid: boolean; discount: number; code: string }>('/promotions/validate', { method: 'POST', body: JSON.stringify({ code, order_total: subtotal, currency: 'EGP' }) }),
 }
 
 export const userAPI = {
-  getAddresses: () => apiFetch<{ addresses: any[] }>('/api/addresses'),
-  saveAddress: (data: any) => apiFetch<{ id: string }>('/api/addresses', { method: 'POST', body: JSON.stringify(data) }),
-  deleteAddress: (id: string) => apiFetch(`/api/addresses/${id}`, { method: 'DELETE' }),
-  getFavorites: () => apiFetch<{ favorites: any[] }>('/api/favorites'),
-  toggleFavorite: (menuItemId: string) => apiFetch<{ favorited: boolean }>(`/api/favorites/${menuItemId}/toggle`, { method: 'POST' }),
-  getCards: () => apiFetch<{ cards: any[] }>('/api/cards'),
-  saveCard: (data: any) => apiFetch<{ id: string }>('/api/cards', { method: 'POST', body: JSON.stringify(data) }),
-  deleteCard: (id: string) => apiFetch(`/api/cards/${id}`, { method: 'DELETE' }),
-  setDefaultCard: (id: string) => apiFetch(`/api/cards/${id}/default`, { method: 'POST' }),
-  createPaymentKey: (data: any) => apiFetch<{ iframeUrl: string; paymentToken: string }>('/api/paymob/payment-key', { method: 'POST', body: JSON.stringify(data) }),
+  getAddresses: () => apiFetch<{ addresses: any[] }>('/addresses').catch(() => ({ addresses: [] })),
+  saveAddress: (data: any) => apiFetch<{ id: string }>('/addresses', { method: 'POST', body: JSON.stringify(data) }),
+  deleteAddress: (id: string) => apiFetch(`/addresses/${id}`, { method: 'DELETE' }),
+  getFavorites: () => apiFetch<{ favorites: any[] }>('/favorites').catch(() => ({ favorites: [] })),
+  toggleFavorite: (menuItemId: string) => apiFetch<{ favorited: boolean }>(`/favorites/${menuItemId}/toggle`, { method: 'POST' }),
 }
 
 export const adminAPI = {
-  getCategories: () => apiFetch<{ categories: any[] }>('/api/admin/categories'),
-  createCategory: (data: any) => apiFetch<{ id: string }>('/api/admin/categories', { method: 'POST', body: JSON.stringify(data) }),
-  updateCategory: (id: string, data: any) => apiFetch(`/api/admin/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteCategory: (id: string) => apiFetch(`/api/admin/categories/${id}`, { method: 'DELETE' }),
-  getMenuItems: () => apiFetch<{ items: any[] }>('/api/admin/menu-items'),
-  createMenuItem: (data: any) => apiFetch<{ id: string }>('/api/admin/menu-items', { method: 'POST', body: JSON.stringify(data) }),
-  updateMenuItem: (id: string, data: any) => apiFetch(`/api/admin/menu-items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteMenuItem: (id: string) => apiFetch(`/api/admin/menu-items/${id}`, { method: 'DELETE' }),
-  getCoupons: () => apiFetch<{ coupons: any[] }>('/api/admin/coupons'),
-  createCoupon: (data: any) => apiFetch<{ id: string }>('/api/admin/coupons', { method: 'POST', body: JSON.stringify(data) }),
-  updateCoupon: (id: string, data: any) => apiFetch(`/api/admin/coupons/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteCoupon: (id: string) => apiFetch(`/api/admin/coupons/${id}`, { method: 'DELETE' }),
-  updateOrderStatus: (id: string, status: string) => apiFetch(`/api/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-  updateSetting: (key: string, value: string) => apiFetch('/api/admin/settings', { method: 'PUT', body: JSON.stringify({ key, value }) }),
-}
-
-export async function uploadImage(file: File): Promise<string> {
-  const formData = new FormData()
-  formData.append('file', file)
-  const token = getAuthToken()
-  const headers: Record<string, string> = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  const res = await fetch('/api/upload', { method: 'POST', headers, body: formData })
-  if (!res.ok) throw new Error('Upload failed')
-  const data = await res.json()
-  return data.url
+  getCategories: () => apiFetch<{ categories: any[] }>('/admin/categories').catch(() => ({ categories: [] })),
+  createCategory: (data: any) => apiFetch<{ id: string }>('/admin/categories', { method: 'POST', body: JSON.stringify(data) }),
+  updateCategory: (id: string, data: any) => apiFetch(`/admin/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCategory: (id: string) => apiFetch(`/admin/categories/${id}`, { method: 'DELETE' }),
+  getMenuItems: () => apiFetch<{ items: any[] }>('/admin/menu-items').catch(() => ({ items: [] })),
+  createMenuItem: (data: any) => apiFetch<{ id: string }>('/admin/menu-items', { method: 'POST', body: JSON.stringify(data) }),
+  updateMenuItem: (id: string, data: any) => apiFetch(`/admin/menu-items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteMenuItem: (id: string) => apiFetch(`/admin/menu-items/${id}`, { method: 'DELETE' }),
+  updateOrderStatus: (id: string, status: string) => apiFetch(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  updateSetting: (key: string, value: string) => apiFetch('/admin/settings', { method: 'PUT', body: JSON.stringify({ key, value }) }),
 }
