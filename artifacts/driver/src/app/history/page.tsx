@@ -41,7 +41,7 @@ export default function HistoryPage() {
                 <p className="text-xs text-gray-500">{order.customer_name}</p>
               </div>
               <div className="text-left">
-                <p className="font-bold text-sm">{(order.total / 100).toFixed(2)} {order.currency}</p>
+                <p className="font-bold text-sm">{((order.total ?? 0) / 100).toFixed(2)} {order.currency}</p>
                 <p className="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString('ar-EG')}</p>
               </div>
             </div>

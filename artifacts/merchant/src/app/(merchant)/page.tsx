@@ -50,7 +50,7 @@ export default function MerchantDashboard() {
             <div className="flex items-center gap-2 mt-0.5">
               <div className="flex items-center gap-0.5">
                 <Star className="w-3 h-3 fill-black text-black" />
-                <span className="text-xs font-bold">{merchant?.restaurant?.rating.toFixed(1) ?? '0.0'}</span>
+                <span className="text-xs font-bold">{merchant?.restaurant?.rating?.toFixed(1) ?? "0.0" ?? '0.0'}</span>
               </div>
               <span className="text-[10px] text-gray-400">({merchant?.restaurant?.ratingCount ?? 0} تقييم)</span>
             </div>
@@ -131,7 +131,7 @@ export default function MerchantDashboard() {
                       <span className="text-[10px] text-white font-bold">{d.count}</span>
                     </motion.div>
                   </div>
-                  <span className="text-[10px] text-gray-500 w-16 text-left">{d.revenue.toFixed(0)} ج.م</span>
+                  <span className="text-[10px] text-gray-500 w-16 text-left">{(d.revenue ?? 0).toFixed(0)} ج.م</span>
                 </div>
               )
             })}

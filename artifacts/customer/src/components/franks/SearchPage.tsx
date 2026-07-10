@@ -31,10 +31,10 @@ export function SearchPage({ onBack }: SearchPageProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetch('/api/menu').then(r => r.json()).then(data => {
+    fetch('/api/v1/categories').then(r => r.json()).then(data => {
       setCategories(data.categories || [])
       const items = (data.categories || []).flatMap((c: Category) =>
-        c.items.map((i: MenuItemType) => ({ ...i, category: { nameAr: c.nameAr, icon: c.icon } }))
+        (c.items || []).map((i: MenuItemType) => ({ ...i, category: { nameAr: c.nameAr, icon: c.icon } }))
       )
       setAllItems(items)
       setLoading(false)

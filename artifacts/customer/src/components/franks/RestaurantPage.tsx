@@ -30,7 +30,7 @@ export function RestaurantPage({ restaurantId, onBack }: RestaurantPageProps) {
   const [detailOpen, setDetailOpen] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/restaurants/${restaurantId}`)
+    fetch(`/api/v1/restaurants/${restaurantId}`)
       .then(r => r.json())
       .then(data => { setRestaurant(data); setLoading(false) })
       .catch(() => setLoading(false))
@@ -65,8 +65,8 @@ export function RestaurantPage({ restaurantId, onBack }: RestaurantPageProps) {
   }
 
   const filteredMenu = search
-    ? restaurant.menu.filter(i => i.nameAr.includes(search) || i.name.toLowerCase().includes(search.toLowerCase()))
-    : restaurant.menu
+    ? (restaurant.menu || []).filter(i => i.nameAr.includes(search) || i.name.toLowerCase().includes(search.toLowerCase()))
+    : (restaurant.menu || [])
 
   // Group by popular first, then all
   const popular = filteredMenu.filter(i => i.isPopular)
@@ -103,7 +103,7 @@ export function RestaurantPage({ restaurantId, onBack }: RestaurantPageProps) {
 
           <div className="flex items-center gap-4 mt-3 text-xs text-gray-400">
             <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {restaurant.deliveryTimeMin}-{restaurant.deliveryTimeMax} دقيقة</span>
-            <span className="flex items-center gap-1"><Truck className="w-3.5 h-3.5" /> {restaurant.deliveryFee === 0 ? 'مجاني' : `${restaurant.deliveryFee.toFixed(2)} ج.م`}</span>
+            <span className="flex items-center gap-1"><Truck className="w-3.5 h-3.5" /> {restaurant.deliveryFee === 0 ? 'مجاني' : `${(restaurant.deliveryFee ?? 0).toFixed(2)} ج.م`}</span>
           </div>
         </div>
       </div>

@@ -59,7 +59,7 @@ export default function AdminRestaurantsPage() {
              <div className="space-y-1 text-xs text-gray-600 mb-3">
                <div className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {r.zoneName || 'بدون منطقة'}</div>
                <div>الأصناف: {r.menuCount} • طلبات اليوم: {r.todayOrders}</div>
-               <div>رسوم التوصيل: {r.deliveryFee} ج.م • تقييم: {r.rating.toFixed(1)} ({r.ratingCount})</div>
+               <div>رسوم التوصيل: {r.deliveryFee} ج.م • تقييم: {(r.rating ?? 0).toFixed(1)} ({r.ratingCount})</div>
              </div>
              <button onClick={() => toggleActive(r)}
                className="w-full h-8 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium flex items-center justify-center gap-1.5">

@@ -44,7 +44,7 @@ export default function AgentOrderPage() {
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-3">
         <p className="font-bold text-sm mb-2">الأصناف</p>
         <div className="space-y-1 text-sm">
-          {order.items.map((it: any, i: number) => (
+          {(order.items || []).map((it: any, i: number) => (
             <div key={i} className="flex justify-between"><span>{it.quantity}× {it.name}</span><span className="text-gray-500">{(it.price * it.quantity).toFixed(2)} ج.م</span></div>
           ))}
         </div>
@@ -64,11 +64,11 @@ export default function AgentOrderPage() {
 
       <div className="bg-white rounded-lg border border-gray-200 p-3 mt-3">
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>الإجمالي: <b>{order.total.toFixed(2)} ج.م</b></div>
-          <div>المجموع الفرعي: {order.subtotal.toFixed(2)}</div>
-          <div>رسوم التوصيل: {order.deliveryFee.toFixed(2)}</div>
-          <div>رسم المندوب: {order.driverFee.toFixed(2)}</div>
-          {order.discount > 0 && <div>الخصم: -{order.discount.toFixed(2)}</div>}
+          <div>الإجمالي: <b>{(order.total ?? 0).toFixed(2)} ج.م</b></div>
+          <div>المجموع الفرعي: {(order.subtotal ?? 0).toFixed(2)}</div>
+          <div>رسوم التوصيل: {(order.deliveryFee ?? 0).toFixed(2)}</div>
+          <div>رسم المندوب: {(order.driverFee ?? 0).toFixed(2)}</div>
+          {order.discount > 0 && <div>الخصم: -{(order.discount ?? 0).toFixed(2)}</div>}
           <div>طريقة الدفع: {order.paymentMethod === 'cash' ? 'نقدي' : order.paymentMethod}</div>
         </div>
       </div>

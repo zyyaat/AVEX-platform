@@ -49,7 +49,7 @@ export function AccountPage({ onBack, onLoginRequired }: AccountPageProps) {
       </header>
       <div className="container mx-auto px-4 py-6 max-w-2xl space-y-5">
         <div className="bg-white rounded-lg border p-5 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-black to-gray-800 flex items-center justify-center"><span className="text-2xl font-bold text-white">{user?.name.charAt(0)}</span></div>
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-black to-gray-800 flex items-center justify-center"><span className="text-2xl font-bold text-white">{user?.name?.charAt(0) ?? "?"}</span></div>
           <div className="flex-1"><p className="font-bold text-lg">{user?.name}</p><p className="text-sm text-gray-500" dir="ltr">{user?.phone}</p></div>
           {user?.loyaltyPoints ? <div className="text-center"><p className="text-2xl font-bold text-black">{user.loyaltyPoints}</p><p className="text-[10px] text-gray-500">نقطة ولاء</p></div> : null}
         </div>

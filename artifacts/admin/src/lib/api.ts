@@ -27,7 +27,7 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const res = await fetch(url, { ...options, headers })
   if (res.status === 401) {
     setAuthToken(null)
-    if (typeof window !== 'undefined') window.location.href = '/admin/login'
+    if (typeof window !== 'undefined') { const b = (import.meta.env.BASE_URL || '/').replace(/\/$/, ''); window.location.href = `${b}/login` }
     throw new Error('انتهت الجلسة')
   }
   if (!res.ok) {
@@ -101,5 +101,6 @@ export const adminAPI = {
   cancelOrder: (id: string) => apiFetch(`/admin/support/tickets/${id}/cancel-order`, { method: 'POST' }),
 
   // Settings (exists in settings module)
+  getSettings: () => apiFetch<{ settings: Record<string, string> }>('/admin/settings').catch(() => ({ settings: {} })),
   updateSetting: (key: string, value: string) => apiFetch('/admin/settings', { method: 'PUT', body: JSON.stringify({ key, value }) }),
 }

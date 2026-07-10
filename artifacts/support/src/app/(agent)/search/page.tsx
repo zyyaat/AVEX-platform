@@ -74,7 +74,7 @@ export default function SearchPage() {
                         <p className="text-xs text-gray-500">{o.customerName} • {o.phone}</p>
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-xs">{o.total.toFixed(2)} ج.م</p>
+                        <p className="font-bold text-xs">{(o.total ?? 0).toFixed(2)} ج.م</p>
                         <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full">{o.status}</span>
                       </div>
                     </div>

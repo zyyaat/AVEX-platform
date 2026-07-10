@@ -183,7 +183,7 @@ export default function MerchantMenuPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="font-bold text-sm">{it.price.toFixed(2)} ج.م</p>
+                  <p className="font-bold text-sm">{(it.price ?? 0).toFixed(2)} ج.م</p>
                   <p className="text-[10px] text-gray-400">{it.prepTime} دقيقة</p>
                 </div>
                 <div className="flex gap-1 mt-2">

@@ -155,7 +155,7 @@ export default function MerchantOrdersPage() {
               {/* Items summary */}
               <p className="text-xs text-gray-600 line-clamp-2 mb-2">{o.itemsSummary}</p>
               <p className="text-xs text-gray-500 mb-3">
-                {o.itemsCount} أصناف • <b className="text-black">{o.total.toFixed(2)} ج.م</b>
+                {o.itemsCount} أصناف • <b className="text-black">{(o.total ?? 0).toFixed(2)} ج.م</b>
               </p>
 
               {/* Actions */}
@@ -288,21 +288,21 @@ export default function MerchantOrdersPage() {
                 <div className="bg-black text-white rounded-xl p-4">
                   <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
                     <span>المجموع الفرعي</span>
-                    <span>{selected.subtotal.toFixed(2)} ج.م</span>
+                    <span>{(selected.subtotal ?? 0).toFixed(2)} ج.م</span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
                     <span>رسوم التوصيل</span>
-                    <span>{selected.deliveryFee.toFixed(2)} ج.م</span>
+                    <span>{(selected.deliveryFee ?? 0).toFixed(2)} ج.م</span>
                   </div>
                   {selected.discount > 0 && (
                     <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
                       <span>الخصم</span>
-                      <span>-{selected.discount.toFixed(2)} ج.م</span>
+                      <span>-{(selected.discount ?? 0).toFixed(2)} ج.م</span>
                     </div>
                   )}
                   <div className="border-t border-white/20 mt-2 pt-2 flex items-center justify-between font-bold">
                     <span>الإجمالي</span>
-                    <span className="text-lg">{selected.total.toFixed(2)} ج.م</span>
+                    <span className="text-lg">{(selected.total ?? 0).toFixed(2)} ج.م</span>
                   </div>
                   <div className="text-[10px] text-gray-300 mt-1">طريقة الدفع: {selected.paymentMethod === 'cash' ? 'نقدي' : selected.paymentMethod}</div>
                 </div>

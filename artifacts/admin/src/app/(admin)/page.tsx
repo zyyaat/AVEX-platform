@@ -69,7 +69,7 @@ export default function AdminDashboard() {
                     <div className="absolute inset-y-0 right-0 bg-black" style={{ width: `${Math.min(100, d.count * 10)}%` }} />
                   </div>
                   <span className="text-xs font-bold w-12 text-left">{d.count}</span>
-                  <span className="text-xs text-gray-500 w-20 text-left">{d.revenue.toFixed(0)} ج.م</span>
+                  <span className="text-xs text-gray-500 w-20 text-left">{(d.revenue ?? 0).toFixed(0)} ج.م</span>
                 </div>
               ))}
             </div>

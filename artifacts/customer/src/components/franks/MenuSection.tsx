@@ -22,7 +22,7 @@ export function MenuSection() {
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
-    fetch('/api/menu').then(r => r.json()).then(data => { setCategories(data.categories || []); setLoading(false) }).catch(() => setLoading(false))
+    fetch('/api/v1/categories').then(r => r.json()).then(data => { setCategories(data.categories || []); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
   const filtered = categories

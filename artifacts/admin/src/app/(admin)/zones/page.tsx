@@ -53,7 +53,7 @@ export default function AdminZonesPage() {
                </span>
              </div>
              <div className="text-xs text-gray-600 space-y-1 mb-3">
-               <div>المركز: {z.centerLat.toFixed(4)}, {z.centerLng.toFixed(4)}</div>
+               <div>المركز: {(z.centerLat ?? 0).toFixed(4)}, {(z.centerLng ?? 0).toFixed(4)}</div>
                <div>نصف القطر: {z.radiusM} م</div>
              </div>
              <button onClick={() => toggle(z)} className="w-full h-8 rounded-lg border border-gray-200 hover:bg-gray-50 text-xs font-medium flex items-center justify-center gap-1.5">

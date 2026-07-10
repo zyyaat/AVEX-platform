@@ -33,7 +33,7 @@ export default function EarningsPage() {
             <Star className="w-5 h-5 text-gray-500" />
             <span className="text-sm text-gray-500">التقييم</span>
           </div>
-          <p className="text-3xl font-bold">{driver?.rating.toFixed(1) || '5.0'} ⭐</p>
+          <p className="text-3xl font-bold">{driver?.rating?.toFixed(1) ?? "5.0" || '5.0'} ⭐</p>
         </div>
         <div className="bg-white rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-2">

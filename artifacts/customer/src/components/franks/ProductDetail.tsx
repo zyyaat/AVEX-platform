@@ -43,10 +43,10 @@ export function ProductDetail({ item, open, onOpenChange }: ProductDetailProps) 
       setSelectedAddOns([])
     }, 0)
 
-    fetch('/api/menu')
+    fetch('/api/v1/categories')
       .then(r => r.json())
       .then(data => {
-        const allItems = (data.categories || []).flatMap((c: any) => c.items)
+        const allItems = (data.categories || []).flatMap((c: any) => (c.items || []))
         const suggestions = allItems
           .filter((i: any) => i.id !== item.id && (i.calories === 0 || i.price < 8))
           .slice(0, 4)

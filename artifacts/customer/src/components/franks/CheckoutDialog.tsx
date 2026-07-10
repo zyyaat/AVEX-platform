@@ -131,7 +131,7 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
     setLoading(true)
 
     try {
-      const response = await fetch('/api/orders', {
+      const response = await fetch('/api/v1/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

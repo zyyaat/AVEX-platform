@@ -27,7 +27,7 @@ export function HomeRestaurants() {
   const router = useRouter()
 
   useEffect(() => {
-    fetch('/api/restaurants')
+    fetch('/api/v1/restaurants')
       .then(r => r.json())
       .then(data => { setRestaurants(data.restaurants || []); setLoading(false) })
       .catch(() => setLoading(false))
@@ -144,7 +144,7 @@ function RestaurantCard({ restaurant, onClick }: { restaurant: Restaurant; onCli
             {restaurant.deliveryFee === 0 ? (
               <span className="text-gray-500">توصيل مجاني</span>
             ) : (
-              `${restaurant.deliveryFee.toFixed(2)} ج.م توصيل`
+              `${(restaurant.deliveryFee ?? 0).toFixed(2)} ج.م توصيل`
             )}
           </span>
         </div>

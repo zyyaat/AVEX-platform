@@ -18,9 +18,9 @@ export default function AgentDriverPage() {
   }, [params.id])
 
   if (loading) return <div className="py-20 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
-  if (!data) return <div className="py-20 text-center text-gray-400">المندوب غير موجود</div>
+  if (!data || !data.driver) return <div className="py-20 text-center text-gray-400">المندوب غير موجود</div>
 
-  const d = data.driver, s = data.stats
+  const d = data.driver, s = data.stats || {}
   return (
     <div dir="rtl" className="max-w-2xl mx-auto">
       <button onClick={() => router.back()} className="mb-3 flex items-center gap-1 text-sm text-gray-600 hover:text-black">
@@ -49,17 +49,17 @@ export default function AgentDriverPage() {
       <div className="grid grid-cols-3 gap-2 mb-3">
         <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
           <Star className="w-4 h-4 mx-auto mb-1 text-gray-500" />
-          <p className="text-base font-bold">{s.rating.toFixed(1)}</p>
+          <p className="text-base font-bold">{(s.rating ?? 0).toFixed(1)}</p>
           <p className="text-[10px] text-gray-400">تقييم ({s.ratingCount})</p>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
           <Award className="w-4 h-4 mx-auto mb-1 text-gray-500" />
-          <p className="text-base font-bold">{s.acceptanceRate.toFixed(0)}%</p>
+          <p className="text-base font-bold">{(s.acceptanceRate ?? 0).toFixed(0)}%</p>
           <p className="text-[10px] text-gray-400">قبول</p>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
           <TrendingUp className="w-4 h-4 mx-auto mb-1 text-gray-500" />
-          <p className="text-base font-bold">{s.totalEarnings.toFixed(0)}</p>
+          <p className="text-base font-bold">{(s.totalEarnings ?? 0).toFixed(0)}</p>
           <p className="text-[10px] text-gray-400">أرباح</p>
         </div>
       </div>
@@ -70,8 +70,8 @@ export default function AgentDriverPage() {
           <div>طلبات مقبولة: <b>{s.acceptedOrders}</b></div>
           <div>طلبات مرفوضة: <b>{s.rejectedOrders}</b></div>
           <div>طلبات مكتملة: <b>{s.completedOrders}</b></div>
-          <div>الالتزام بالوقت: <b>{s.onTimeRate.toFixed(0)}%</b></div>
-          <div>نسبة الإكمال: <b>{s.completionRate.toFixed(0)}%</b></div>
+          <div>الالتزام بالوقت: <b>{(s.onTimeRate ?? 0).toFixed(0)}%</b></div>
+          <div>نسبة الإكمال: <b>{(s.completionRate ?? 0).toFixed(0)}%</b></div>
         </div>
       </div>
 
@@ -83,7 +83,7 @@ export default function AgentDriverPage() {
               <div key={o.id} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
                 <span dir="ltr">{o.orderNumber}</span>
                 <span className="text-gray-500">{statusLabels[o.status] || o.status}</span>
-                <span className="font-bold">{o.earnings.toFixed(2)} ج.م</span>
+                <span className="font-bold">{(o.earnings ?? 0).toFixed(2)} ج.م</span>
               </div>
             ))}
           </div>

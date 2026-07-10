@@ -42,7 +42,7 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const res = await fetch(url, { ...options, headers })
   if (res.status === 401) {
     setAuthToken(null)
-    if (typeof window !== 'undefined') window.location.href = '/login'
+    if (typeof window !== 'undefined') { const b = (import.meta.env.BASE_URL || '/').replace(/\/$/, ''); window.location.href = `${b}/?auth=login` }
     throw new Error('انتهت الجلسة')
   }
   if (!res.ok) {
@@ -87,6 +87,10 @@ export const userAPI = {
   deleteAddress: (id: string) => apiFetch(`/addresses/${id}`, { method: 'DELETE' }),
   getFavorites: () => apiFetch<{ favorites: any[] }>('/favorites').catch(() => ({ favorites: [] })),
   toggleFavorite: (menuItemId: string) => apiFetch<{ favorited: boolean }>(`/favorites/${menuItemId}/toggle`, { method: 'POST' }),
+  getCards: () => apiFetch<{ cards: any[] }>('/cards').catch(() => ({ cards: [] })),
+  saveCard: (data: any) => apiFetch<{ id: string }>('/cards', { method: 'POST', body: JSON.stringify(data) }),
+  deleteCard: (id: string) => apiFetch(`/cards/${id}`, { method: 'DELETE' }),
+  setDefaultCard: (id: string) => apiFetch<{ success: boolean }>(`/cards/${id}/default`, { method: 'POST' }),
 }
 
 export const adminAPI = {

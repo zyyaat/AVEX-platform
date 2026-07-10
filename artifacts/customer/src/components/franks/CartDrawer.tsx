@@ -22,7 +22,7 @@ export function CartDrawer({ onCheckout }: CartDrawerProps) {
   // Fetch recommended items
   useEffect(() => {
     if (isOpen && items.length > 0) {
-      fetch('/api/menu')
+      fetch('/api/v1/categories')
         .then(r => r.json())
         .then(data => {
           const allItems = (data.categories || []).flatMap((c: any) => c.items)

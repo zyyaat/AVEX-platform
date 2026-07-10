@@ -71,7 +71,7 @@ export default function AdminDriversPage() {
                    {d.isOnline ? <span className="text-[10px] text-black font-bold">● متصل</span> : <span className="text-[10px] text-gray-400">○ غير متصل</span>}
                  </td>
                  <td className="px-3 py-2 text-xs">{d.completedOrders}</td>
-                 <td className="px-3 py-2 text-xs font-bold">{d.totalEarnings.toFixed(2)}</td>
+                 <td className="px-3 py-2 text-xs font-bold">{(d.totalEarnings ?? 0).toFixed(2)}</td>
                  <td className="px-3 py-2">
                    <button onClick={() => toggleActive(d)} className="text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50">
                      <Power className="w-3 h-3 inline" /> {d.isActive ? 'إيقاف' : 'تفعيل'}

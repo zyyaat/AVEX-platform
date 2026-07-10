@@ -66,9 +66,9 @@ export default function AdminOrdersPage() {
                        o.status === 'cancelled' ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-700'
                      }`}>{statusLabels[o.status] || o.status}</span>
                    </td>
-                   <td className="px-3 py-2 font-bold">{o.total.toFixed(2)}</td>
-                   <td className="px-3 py-2 text-xs">{o.driverFee.toFixed(2)}</td>
-                   <td className="px-3 py-2 text-xs">{o.platformMargin.toFixed(2)}</td>
+                   <td className="px-3 py-2 font-bold">{(o.total ?? 0).toFixed(2)}</td>
+                   <td className="px-3 py-2 text-xs">{(o.driverFee ?? 0).toFixed(2)}</td>
+                   <td className="px-3 py-2 text-xs">{(o.platformMargin ?? 0).toFixed(2)}</td>
                    <td className="px-3 py-2 text-xs text-gray-500">{new Date(o.createdAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</td>
                  </tr>
                ))}

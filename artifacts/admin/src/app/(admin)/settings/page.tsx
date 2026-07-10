@@ -18,7 +18,7 @@ export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/settings').then(r => r.json()).then(d => {
+    fetch('/api/v1/admin/settings', { headers: { Authorization: `Bearer ${localStorage.getItem('avex_admin_token')}` } }).then(r => r.json()).then(d => {
       setValues(d.settings || {})
       setLoading(false)
     })

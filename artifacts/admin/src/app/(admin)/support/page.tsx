@@ -27,7 +27,7 @@ export default function AdminSupportPage() {
       // Reuse admin endpoint for messages — we have HandleAdminSendMessage but not a GET for ticket.
       // For simplicity, use the agent endpoint via direct fetch with same token
       const token = localStorage.getItem('avex_admin_token')
-      const res = await fetch(`/api/agent/tickets/${t.id}`, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetch(`/api/v1/support/tickets/${t.id}`, { headers: { Authorization: `Bearer ${token}` } })
       if (res.ok) {
         const d = await res.json()
         setMessages(d.messages || [])
