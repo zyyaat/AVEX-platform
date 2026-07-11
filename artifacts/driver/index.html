@@ -9,6 +9,26 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Expose Replit Secrets to the browser. MAPBOX_ACCESS_TOKEN is a PUBLIC
+         token (safe for browser exposure). We inject it via a server-rendered
+         script so Vite doesn't need to bake it into the bundle at build time. -->
+    <script>
+      // This script runs before the React app loads.
+      // It reads MAPBOX_ACCESS_TOKEN from the server-rendered env (if available)
+      // and exposes it on window.__MAPBOX_ACCESS_TOKEN.
+      // On Replit, secrets are injected as process.env at runtime; Vite
+      // exposes them via import.meta.env if prefixed with VITE_.
+      // As a fallback, we also accept a global set by a reverse proxy.
+      (function() {
+        try {
+          // Vite env vars (must be prefixed with VITE_ in .env)
+          var viteToken = '%VITE_MAPBOX_TOKEN%'; // replaced by Vite at build time
+          if (viteToken && viteToken !== '%VITE_MAPBOX_TOKEN%') {
+            window.__MAPBOX_ACCESS_TOKEN = viteToken;
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

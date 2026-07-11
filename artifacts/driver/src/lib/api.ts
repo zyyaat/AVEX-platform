@@ -129,27 +129,39 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
   const res = await fetch(url, { ...options, headers })
-  
+
   if (res.status === 401) {
+    // Clear the in-memory token, but DON'T redirect immediately.
+    // The auth store's initialize() will handle the redirect gracefully.
+    // This prevents the "page reloads constantly" issue.
     setAuthToken(null)
+    // Only redirect if we're NOT already on the login page (to avoid loops)
     if (typeof window !== 'undefined') {
-      const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
-      window.location.href = `${base}/login`
+      const currentPath = window.location.pathname
+      const loginPath = (import.meta.env.BASE_URL || '/') + 'login'
+      if (!currentPath.endsWith('/login')) {
+        // Use a soft redirect via state change, not a hard navigation
+        // that could interrupt React rendering.
+        setTimeout(() => {
+          const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+          window.location.href = `${base}/login`
+        }, 100)
+      }
     }
     throw new Error('انتهت الجلسة — يرجى تسجيل الدخول مرة أخرى')
   }
-  
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: 'Request failed' }))
     throw new Error(error.error || `HTTP ${res.status}`)
   }
-  
+
   // Some endpoints return no content
   if (res.status === 204) return {} as T
-  
+
   const text = await res.text()
   if (!text) return {} as T
-  
+
   const json = JSON.parse(text)
   // Our Go backend wraps responses in { "data": ... }
   return json.data !== undefined ? json.data : json

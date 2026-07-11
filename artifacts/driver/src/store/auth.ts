@@ -62,6 +62,28 @@ export const useAuth = create<AuthState>()(
         const token = get().token
         if (token) {
           setAuthToken(token)
+          // Validate the token by fetching the driver profile.
+          // If it's expired or invalid, the backend returns 401 and we log out.
+          try {
+            const { driverAPI } = await import('@/lib/api')
+            // Try to fetch the driver profile using the stored userID.
+            const userID = get().userID
+            if (userID) {
+              await driverAPI.getDriverByUserID(userID)
+              // Token is valid — keep the user logged in.
+              set({ isAuthenticated: true })
+            }
+          } catch (err: any) {
+            // Token is invalid or expired — log out gracefully.
+            console.warn('Token validation failed, logging out:', err.message)
+            setAuthToken(null)
+            set({
+              token: null,
+              userID: null,
+              role: null,
+              isAuthenticated: false,
+            })
+          }
         }
       },
     }),

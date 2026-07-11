@@ -31,8 +31,17 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
   const res = await fetch(url, { ...options, headers })
   if (res.status === 401) {
+    // Clear token, but delay redirect to avoid React render interruptions.
     setAuthToken(null)
-    if (typeof window !== 'undefined') { const b = (import.meta.env.BASE_URL || '/').replace(/\/$/, ''); window.location.href = `${b}/login` }
+    if (typeof window !== 'undefined') {
+      const currentPath = window.location.pathname
+      if (!currentPath.endsWith('/login')) {
+        setTimeout(() => {
+          const b = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+          window.location.href = `${b}/login`
+        }, 100)
+      }
+    }
     throw new Error('انتهت الجلسة')
   }
   if (!res.ok) {

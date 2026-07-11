@@ -16,7 +16,13 @@ import { SideDrawer } from '@/components/SideDrawer'
 import { toast } from 'sonner'
 
 // ===== Mapbox CDN Loader =====
-const MAPBOX_TOKEN = 'MAPBOX_PUBLIC_TOKEN_PLACEHOLDER'
+// Read the Mapbox token from Vite env (VITE_MAPBOX_TOKEN) or fall back to
+// the global MAPBOX_ACCESS_TOKEN (set by Replit Secrets via window.__ENV__).
+// The token is a PUBLIC token (safe to expose in browser code).
+const MAPBOX_TOKEN: string =
+  (import.meta.env.VITE_MAPBOX_TOKEN as string) ||
+  (typeof window !== 'undefined' && (window as any).__MAPBOX_ACCESS_TOKEN) ||
+  ''
 
 function loadMapbox(): Promise<any> {
   // Load CSS
