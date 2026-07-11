@@ -62,45 +62,23 @@ export const useAuth = create<AuthState>()(
       },
 
       initialize: async () => {
+        // SIMPLE & FAST: just restore the token from localStorage.
+        // NO API calls during initialization — this prevents the page
+        // from hanging if the backend is slow or the driver doesn't
+        // exist in dispatch.drivers yet.
+        //
+        // If the token is expired/invalid, the first real API call
+        // (fetchDriver) will return 401 and the 401 handler will log
+        // the user out gracefully.
         const token = get().token
         if (token) {
           setAuthToken(token)
-          // Validate the token by fetching the driver profile.
-          // ONLY log out if the token is actually invalid/expired (401).
-          // Other errors (network, 404, 500) should NOT log the user out —
-          // they might be temporary, and the user should stay logged in.
-          try {
-            const { driverAPI } = await import('@/lib/api')
-            const userID = get().userID
-            if (userID) {
-              await driverAPI.getDriverByUserID(userID)
-            }
-            // Success — token is valid.
-            set({ isAuthenticated: true, isInitialized: true })
-          } catch (err: any) {
-            const errMsg = err.message || ''
-            // Only log out on auth errors (401) or session-expired messages.
-            // Network errors, 404s, 500s, etc. should keep the user logged in.
-            if (errMsg.includes('انتهت الجلسة') || errMsg.includes('401') || errMsg.includes('invalid or expired token')) {
-              console.warn('Token is invalid/expired, logging out:', errMsg)
-              setAuthToken(null)
-              set({
-                token: null,
-                userID: null,
-                role: null,
-                isAuthenticated: false,
-                isInitialized: true,
-              })
-            } else {
-              // Non-auth error — keep the user logged in, just mark as initialized.
-              // The home page will retry the API call and show an error if needed.
-              console.warn('Token validation failed (non-auth error), keeping session:', errMsg)
-              set({ isAuthenticated: true, isInitialized: true })
-            }
-          }
-        } else {
-          // No token — mark as initialized so the route guard can proceed.
+          // Keep isAuthenticated as-is (it was persisted as true).
+          // The route guard will let the user through immediately.
           set({ isInitialized: true })
+        } else {
+          // No token — not authenticated.
+          set({ isAuthenticated: false, isInitialized: true })
         }
       },
     }),

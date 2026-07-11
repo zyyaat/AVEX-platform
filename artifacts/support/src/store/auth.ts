@@ -38,10 +38,10 @@ export const useAuth = create<AuthState>()(
         const token = get().token
         if (token) {
           setAuthToken(token)
-          try { const a = await agentAuthAPI.me(); set({ agent: a, isAuthenticated: true }) }
-          catch { setAuthToken(null); set({ token: null, isAuthenticated: false }) }
+          set({ isInitialized: true })
+        } else {
+          set({ isAuthenticated: false, isInitialized: true })
         }
-        set({ isInitialized: true })
       },
     }),
     { name: 'avex-agent-auth', partialize: (s) => ({ token: s.token, agent: s.agent, isAuthenticated: s.isAuthenticated }) }

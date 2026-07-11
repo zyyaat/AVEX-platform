@@ -68,13 +68,14 @@ export const useAuth = create<AuthState>()(
       },
 
       initialize: async () => {
+        // SIMPLE & FAST: just restore the token. No API calls.
         const token = get().token
         if (token) {
           setAuthToken(token)
-          await get().fetchUser()
+          set({ isAuthenticated: true, isInitialized: true })
+        } else {
+          set({ isAuthenticated: false, isInitialized: true })
         }
-        // Mark as initialized whether or not we had a token.
-        set({ isInitialized: true })
       },
     }),
     {

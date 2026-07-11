@@ -38,11 +38,9 @@ export const useAuth = create<AuthState>()(
         const token = get().token
         if (token) {
           setAuthToken(token)
-          try {
-            const u = await adminAuthAPI.me()
-            if (u?.is_admin || u?.isAdmin) set({ user: u, isAuthenticated: true })
-            else set({ token: null, isAuthenticated: false })
-          } catch { setAuthToken(null); set({ token: null, isAuthenticated: false }) }
+          set({ isInitialized: true })
+        } else {
+          set({ isAuthenticated: false, isInitialized: true })
         }
       },
     }),

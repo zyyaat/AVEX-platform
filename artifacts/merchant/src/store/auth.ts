@@ -78,15 +78,10 @@ export const useAuth = create<AuthState>()(
         const token = get().token
         if (token) {
           setAuthToken(token)
-          try {
-            const m = await merchantAuthAPI.me()
-            set({ merchant: m, isAuthenticated: true })
-          } catch {
-            setAuthToken(null)
-            set({ token: null, isAuthenticated: false })
-          }
+          set({ isInitialized: true })
+        } else {
+          set({ isAuthenticated: false, isInitialized: true })
         }
-        set({ isInitialized: true })
       },
     }),
     {
