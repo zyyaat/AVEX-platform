@@ -38,7 +38,7 @@ export default function AdminDriversPage() {
     e.preventDefault()
     setCreating(true)
     try {
-      // Step 1: Create driver in identity.drivers (verified + active)
+      // Single call — backend creates both identity + dispatch in one request
       const result = await adminAPI.createDriver({
         name: form.name,
         phone: form.phone,
@@ -50,28 +50,7 @@ export default function AdminDriversPage() {
         zone_ids: form.zone_ids.split(',').map(z => z.trim()).filter(Boolean),
       })
 
-      toast.success(`تم إنشاء المندوب! ID: ${result.driver_id}`)
-
-      // Step 2: Register in dispatch.drivers
-      // We need to call POST /api/v1/admin/drivers (dispatch) with the driver_id
-      try {
-        await fetch('/api/v1/admin/drivers', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('avex_admin_token')}`,
-          },
-          body: JSON.stringify({
-            user_id: result.driver_id,
-            vehicle_type: form.vehicle_type === 'motorcycle' ? 'bike' : form.vehicle_type,
-            license_plate: form.license_plate || 'N/A',
-            zone_ids: form.zone_ids.split(',').map(z => z.trim()).filter(Boolean),
-          }),
-        })
-        toast.success('تم تسجيل المندوب في نظام التوصيل')
-      } catch {
-        toast.warning('تم إنشاء المندوب لكن فشل تسجيله في التوصيل — يمكن إكماله لاحقاً')
-      }
+      toast.success(`تم إنشاء المندوب بنجاح!`)
 
       setShowCreate(false)
       setForm({ name: '', phone: '', password: '', vehicle_type: 'motorcycle', license_number: '', national_id: '', license_plate: '', zone_ids: 'zone-cairo' })

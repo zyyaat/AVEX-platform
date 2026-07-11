@@ -15,6 +15,8 @@ import (
         "log/slog"
         "net/http"
 
+        "github.com/jackc/pgx/v5/pgxpool"
+
         "avex-backend/internal/modules/identity/port"
 )
 
@@ -23,6 +25,7 @@ type RoutesConfig struct {
         JWTIssuer      port.JWTIssuer
         Logger         *slog.Logger
         AllowedOrigins []string
+        Pool           *pgxpool.Pool // for direct DB access (admin create driver)
 }
 
 // RegisterRoutes registers all identity HTTP routes on the given mux.
@@ -31,6 +34,7 @@ type RoutesConfig struct {
 // only registers route-specific handlers and per-route auth middleware.
 func RegisterRoutes(mux *http.ServeMux, svc port.ServicePort, cfg RoutesConfig) {
         h := NewHandler(svc, cfg.Logger)
+        h.pool = cfg.Pool
 
         // ----- Public routes (no auth) -----
         mux.HandleFunc("GET /healthz", h.Health)

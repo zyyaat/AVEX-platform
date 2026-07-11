@@ -16,6 +16,9 @@ import (
         "log/slog"
         "net/http"
 
+        "github.com/google/uuid"
+        "github.com/jackc/pgx/v5/pgxpool"
+
         "avex-backend/internal/modules/identity/port"
 )
 
@@ -25,6 +28,7 @@ import (
 type Handler struct {
         svc    port.ServicePort
         logger *slog.Logger
+        pool   *pgxpool.Pool // for direct DB access (admin create driver → dispatch)
 }
 
 // NewHandler creates a new Handler.
@@ -467,21 +471,9 @@ func (h *Handler) VerifyDriver(w http.ResponseWriter, r *http.Request) {
 }
 
 // AdminCreateDriverHandler handles POST /api/v1/admin/drivers/create
-// Creates a complete driver: identity.drivers (verified) + dispatch.drivers.
-// The handler calls identity.AdminCreateDriver first, then dispatch.RegisterDriver.
-// The dispatch service is injected via the Handler's dispatchSvc field.
-//
-// Request body:
-//   {
-//     "name": "Ahmed",
-//     "phone": "01012345678",
-//     "password": "12345678",
-//     "vehicle_type": "motorcycle",
-//     "license_number": "LIC-123",
-//     "national_id": "ID-123",
-//     "license_plate": "ABC-123",
-//     "zone_ids": ["zone-cairo"]
-//   }
+// Creates a complete driver in ONE call:
+//   1. identity.drivers (verified + active)
+//   2. dispatch.drivers (for delivery operations)
 func (h *Handler) AdminCreateDriverHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name          string   `json:"name"`
@@ -514,20 +506,92 @@ func (h *Handler) AdminCreateDriverHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Step 2: Register in dispatch.drivers via direct DB call
-	// We can't call dispatch service directly (no import cycle allowed),
-	// so we return the driverID and let the frontend call the dispatch endpoint.
-	// OR we do a direct SQL insert here.
-	// For now, we return the driverID + a message that dispatch registration
-	// needs to be done separately (or we do it via a shared DB pool).
-	//
-	// Actually, the simplest approach: return the driverID and let the admin
-	// frontend call POST /api/v1/admin/drivers (dispatch) with this ID.
+	// Step 2: Register in dispatch.drivers via DIRECT SQL INSERT
+	// Map identity vehicle types to dispatch vehicle types (dispatch only allows bike|scooter|car).
+	dispatchVehicleType := "bike"
+	switch req.VehicleType {
+	case "scooter":
+		dispatchVehicleType = "scooter"
+	case "car":
+		dispatchVehicleType = "car"
+	}
+
+	dispatchID := uuid.New().String()
+	licensePlate := req.LicensePlate
+	if licensePlate == "" {
+		licensePlate = "N/A"
+	}
+
+	_, dispatchErr := h.pool.Exec(r.Context(), `
+		INSERT INTO dispatch.drivers (
+			id, user_id, vehicle_type, license_plate,
+			status, rating, rating_count, acceptance_rate, completion_rate, total_deliveries,
+			zone_ids, current_order_id, go_online_at, go_offline_at, suspended_reason,
+			created_at, updated_at, version
+		) VALUES (
+			$1, $2, $3, $4,
+			'offline', 5.0, 0, 100, 100, 0,
+			$5, NULL, NULL, NULL, '',
+			NOW(), NOW(), 1
+		)
+		ON CONFLICT (user_id) DO NOTHING
+	`,
+		dispatchID, driverID, dispatchVehicleType, licensePlate,
+		req.ZoneIDs,
+	)
+
+	if dispatchErr != nil {
+		h.logger.Error("dispatch.drivers insert failed", "error", dispatchErr, "driver_id", driverID)
+		writeJSON(w, http.StatusCreated, map[string]any{
+			"driver_id":   driverID,
+			"status":      "partial",
+			"message":     "Driver created in identity, dispatch registration failed",
+		})
+		return
+	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"driver_id":   driverID,
+		"dispatch_id": dispatchID,
 		"status":      "created",
-		"message":     "Driver created in identity. Now register in dispatch.",
-		"next_step":   "POST /api/v1/admin/drivers with {user_id: driver_id, vehicle_type, license_plate, zone_ids}",
+		"message":     "Driver fully created",
 	})
+}
+        if err := readJSON(r, &req); err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+
+        // Step 1: Create driver in identity.drivers (verified + active)
+        driverID, err := h.svc.AdminCreateDriver(r.Context(), port.AdminCreateDriverInput{
+                Name:          req.Name,
+                Phone:         req.Phone,
+                Password:      req.Password,
+                VehicleType:   req.VehicleType,
+                LicenseNumber: req.LicenseNumber,
+                NationalID:    req.NationalID,
+                LicensePlate:  req.LicensePlate,
+                ZoneIDs:       req.ZoneIDs,
+        })
+        if err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+
+        // Step 2: Register in dispatch.drivers via direct DB call
+        // We can't call dispatch service directly (no import cycle allowed),
+        // so we return the driverID and let the frontend call the dispatch endpoint.
+        // OR we do a direct SQL insert here.
+        // For now, we return the driverID + a message that dispatch registration
+        // needs to be done separately (or we do it via a shared DB pool).
+        //
+        // Actually, the simplest approach: return the driverID and let the admin
+        // frontend call POST /api/v1/admin/drivers (dispatch) with this ID.
+
+        writeJSON(w, http.StatusCreated, map[string]any{
+                "driver_id":   driverID,
+                "status":      "created",
+                "message":     "Driver created in identity. Now register in dispatch.",
+                "next_step":   "POST /api/v1/admin/drivers with {user_id: driver_id, vehicle_type, license_plate, zone_ids}",
+        })
 }
