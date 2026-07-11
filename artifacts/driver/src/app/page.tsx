@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bike, Phone, Lock, Loader2, Eye, EyeOff, AlertCircle,
   Power, Package, Star, LogOut, User, Wallet, Clock,
   Store, MapPin, Navigation, CheckCircle2, X, ChevronDown,
-  TrendingUp, ArrowLeft, Home,
+  TrendingUp, ArrowLeft, Home, Map as MapIcon,
 } from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { useDriver } from '@/store/driver'
@@ -30,6 +30,10 @@ export default function DriverPage() {
   const [tab, setTab] = useState<Tab>('home')
   const [activeOfferId, setActiveOfferId] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [mapReady, setMapReady] = useState(false)
+  const [mapError, setMapError] = useState<string | null>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<any>(null)
 
   // Restore session on mount
   useEffect(() => {
@@ -72,6 +76,112 @@ export default function DriverPage() {
     if (tab === 'earnings') refreshWallet()
     if (tab === 'history') refreshHistory()
   }, [tab, refreshWallet, refreshHistory])
+
+  // ===== Map: load only on home tab when authenticated =====
+  useEffect(() => {
+    if (tab !== 'home' || !isAuthenticated) return
+    if (mapRef.current || !mapContainerRef.current) return
+
+    let cancelled = false
+
+    // Get Mapbox token from env or Replit Secrets
+    const MAPBOX_TOKEN =
+      (import.meta.env.VITE_MAPBOX_TOKEN as string) ||
+      (typeof window !== 'undefined' && (window as any).__MAPBOX_ACCESS_TOKEN) ||
+      ''
+
+    if (!MAPBOX_TOKEN) {
+      setMapError('مفتاح الخريطة غير متوفر — تواصل مع الإدارة')
+      return
+    }
+
+    // Load Mapbox CSS
+    if (!document.querySelector('#mapbox-gl-css')) {
+      const link = document.createElement('link')
+      link.id = 'mapbox-gl-css'
+      link.rel = 'stylesheet'
+      link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.5.2/mapbox-gl.css'
+      document.head.appendChild(link)
+    }
+
+    // Load Mapbox JS (or reuse if already loaded)
+    const initMap = (mbgl: any) => {
+      if (cancelled || !mapContainerRef.current) return
+      try {
+        mbgl.accessToken = MAPBOX_TOKEN
+        const map = new mbgl.Map({
+          container: mapContainerRef.current,
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center: [31.2357, 30.0444], // Cairo
+          zoom: 13,
+          attributionControl: false,
+        })
+
+        map.on('load', () => {
+          if (cancelled) return
+          setMapReady(true)
+          setMapError(null)
+          setTimeout(() => map.resize(), 200)
+
+          // Try to get user location
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                if (!cancelled) {
+                  map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 })
+                }
+              },
+              () => {},
+              { enableHighAccuracy: true, timeout: 5000 }
+            )
+          }
+        })
+
+        map.on('error', (e: any) => {
+          console.error('Mapbox error:', e?.error?.message || e)
+        })
+
+        map.addControl(new mbgl.NavigationControl(), 'top-left')
+        mapRef.current = map
+      } catch (err: any) {
+        console.error('Map init error:', err)
+        setMapError(err.message || 'فشل تحميل الخريطة')
+      }
+    }
+
+    if ((window as any).mapboxgl) {
+      initMap((window as any).mapboxgl)
+    } else {
+      const script = document.createElement('script')
+      script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.5.2/mapbox-gl.js'
+      script.onload = () => {
+        if (!cancelled && (window as any).mapboxgl) {
+          initMap((window as any).mapboxgl)
+        }
+      }
+      script.onerror = () => {
+        if (!cancelled) setMapError('فشل تحميل Mapbox CDN')
+      }
+      document.head.appendChild(script)
+    }
+
+    // Timeout safety — if map doesn't load in 8s, show placeholder
+    const timeout = setTimeout(() => {
+      if (!cancelled && !mapReady) {
+        setMapReady(true) // show the map container anyway
+      }
+    }, 8000)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+      if (mapRef.current) {
+        mapRef.current.remove()
+        mapRef.current = null
+      }
+      setMapReady(false)
+    }
+  }, [tab, isAuthenticated, mapReady])
 
   // ===== Login =====
   const handleLogin = async (e: React.FormEvent) => {
@@ -217,6 +327,42 @@ export default function DriverPage() {
         {/* ===== HOME TAB ===== */}
         {tab === 'home' && (
           <div className="space-y-4">
+            {/* Map */}
+            <div className="relative rounded-xl overflow-hidden shadow-sm border border-gray-100" style={{ height: '300px' }}>
+              <div ref={mapContainerRef} className="absolute inset-0" />
+              {/* Map loading/error overlay */}
+              {(!mapReady || mapError) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+                  {mapError ? (
+                    <div className="text-center px-6">
+                      <MapIcon className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">{mapError}</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                      <p className="text-xs text-gray-400">جاري تحميل الخريطة...</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Recenter button */}
+              {mapReady && (
+                <button
+                  onClick={() => {
+                    if (navigator.geolocation && mapRef.current) {
+                      navigator.geolocation.getCurrentPosition((pos) => {
+                        mapRef.current?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 15 })
+                      })
+                    }
+                  }}
+                  className="absolute bottom-3 left-3 z-20 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center"
+                >
+                  <Navigation className="w-5 h-5 text-gray-700" />
+                </button>
+              )}
+            </div>
+
             {/* Status */}
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-4">
