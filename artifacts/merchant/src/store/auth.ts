@@ -22,6 +22,7 @@ export const useAuth = create<AuthState>()(
       token: null,
       merchant: null,
       isAuthenticated: false,
+      isInitialized: false,
       isLoading: false,
       mustChangePassword: false,
 
@@ -78,6 +79,7 @@ export const useAuth = create<AuthState>()(
             set({ token: null, isAuthenticated: false })
           }
         }
+        set({ isInitialized: true })
       },
     }),
     {

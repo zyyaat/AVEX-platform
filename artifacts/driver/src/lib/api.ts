@@ -3,6 +3,8 @@
 
 const API_BASE = '/api/v1'  // Always use /api/v1 prefix
 
+import { toCamelCase } from './transformer'
+
 let authToken: string | null = null
 
 export function setAuthToken(token: string | null) {
@@ -153,7 +155,9 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 
   const json = JSON.parse(text)
   // Our Go backend wraps responses in { "data": ... }
-  return json.data !== undefined ? json.data : json
+  const payload = json.data !== undefined ? json.data : json
+  // Transform snake_case keys to camelCase so frontend types work correctly.
+  return toCamelCase<T>(payload)
 }
 
 // ===== AUTH API =====

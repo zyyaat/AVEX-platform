@@ -7,6 +7,7 @@ interface AuthState {
   user: any
   isAuthenticated: boolean
   isLoading: boolean
+  isInitialized: boolean
   login: (phone: string, password: string) => Promise<void>
   logout: () => void
   initialize: () => Promise<void>
@@ -16,6 +17,7 @@ export const useAuth = create<AuthState>()(
   persist(
     (set, get) => ({
       token: null, user: null, isAuthenticated: false, isLoading: false,
+      isInitialized: false,
       login: async (phone, password) => {
         set({ isLoading: true })
         try {

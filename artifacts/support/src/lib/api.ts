@@ -5,6 +5,8 @@
 
 const API_BASE = '/api/v1'
 
+import { toCamelCase } from './transformer'
+
 let authToken: string | null = null
 export function setAuthToken(t: string | null) {
   authToken = t
@@ -28,17 +30,9 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
   const res = await fetch(url, { ...options, headers })
   if (res.status === 401) {
-    // Clear token, but delay redirect to avoid React render interruptions.
+    // Clear the in-memory token. Don't redirect — let the auth store
+    // handle it gracefully via initialize() + route guard.
     setAuthToken(null)
-    if (typeof window !== 'undefined') {
-      const currentPath = window.location.pathname
-      if (!currentPath.endsWith('/login')) {
-        setTimeout(() => {
-          const b = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
-          window.location.href = `${b}/login`
-        }, 100)
-      }
-    }
     throw new Error('انتهت الجلسة')
   }
   if (!res.ok) {
@@ -48,7 +42,10 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const text = await res.text()
   if (!text) return {} as T
   const json = JSON.parse(text)
-  return json.data !== undefined ? json.data : json
+  // Our Go backend wraps responses in { "data": ... }
+  const payload = json.data !== undefined ? json.data : json
+  // Transform snake_case keys to camelCase so frontend types work correctly.
+  return toCamelCase<T>(payload)
 }
 
 export const agentAuthAPI = {
