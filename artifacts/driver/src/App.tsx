@@ -5,6 +5,7 @@ import { Route, Switch, Router as WouterRouter } from 'wouter';
 import NotFound from '@/pages/not-found';
 
 import LoginPage from '@/app/login/page';
+import { DriverLayout } from '@/components/DriverLayout';
 import HomePage from '@/app/page';
 import EarningsPage from '@/app/earnings/page';
 import HistoryPage from '@/app/history/page';
@@ -14,17 +15,28 @@ import ChangePasswordPage from '@/app/change-password/page';
 
 const queryClient = new QueryClient();
 
+function DriverRoutes() {
+  return (
+    <DriverLayout>
+      <Switch>
+        <Route path="/" component={HomePage} />
+        <Route path="/earnings" component={EarningsPage} />
+        <Route path="/history" component={HistoryPage} />
+        <Route path="/profile" component={ProfilePage} />
+        <Route path="/support" component={SupportPage} />
+        <Route path="/change-password" component={ChangePasswordPage} />
+        <Route component={NotFound} />
+      </Switch>
+    </DriverLayout>
+  );
+}
+
 function Router() {
   return (
     <Switch>
       <Route path="/login" component={LoginPage} />
-      <Route path="/" component={HomePage} />
-      <Route path="/earnings" component={EarningsPage} />
-      <Route path="/history" component={HistoryPage} />
-      <Route path="/profile" component={ProfilePage} />
-      <Route path="/support" component={SupportPage} />
-      <Route path="/change-password" component={ChangePasswordPage} />
-      <Route component={NotFound} />
+      <Route path="/" component={DriverRoutes} />
+      <Route path="/:rest*" component={DriverRoutes} />
     </Switch>
   );
 }
