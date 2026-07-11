@@ -311,13 +311,13 @@ export default function DriverPage() {
         ))}
       </div>
 
-      <main className="max-w-2xl mx-auto pb-20">
+      <main className="max-w-2xl mx-auto">
         {/* ===== HOME TAB — Talabat Rider style ===== */}
         {tab === 'home' && (
-          <div className="relative">
-            {/* Full-screen map */}
-            <div className="relative w-full" style={{ height: 'calc(100dvh - 112px)' }}>
-              <div ref={mapContainerRef} className="absolute inset-0" />
+          <>
+            {/* Map fills space between tab bar and bottom card */}
+            <div className="relative w-full" style={{ height: 'calc(100dvh - 112px - 140px)' }}>
+              <div ref={mapContainerRef} className="absolute inset-0 z-0" />
               {/* Map loading/error overlay */}
               {(!mapReady || mapError) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
@@ -350,36 +350,25 @@ export default function DriverPage() {
               </div>
 
               {/* Side buttons (right) */}
-              {mapReady && (
-                <div className="absolute right-3 bottom-24 z-20 flex flex-col gap-2">
-                  <button
-                    onClick={() => {
-                      if (navigator.geolocation && mapRef.current) {
-                        navigator.geolocation.getCurrentPosition((pos) => {
-                          mapRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 15)
-                        })
-                      }
-                    }}
-                    className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center"
-                  >
-                    <Navigation className="w-5 h-5 text-gray-700" />
-                  </button>
-                </div>
-              )}
-
-              {/* Online/Offline toggle button (right, above recenter) */}
-              {mapReady && (
-                <button onClick={handleToggle} disabled={toggling || !driver}
-                  className="absolute right-3 bottom-4 z-20 w-10 h-10 rounded-full shadow-lg flex items-center justify-center disabled:opacity-50"
-                  style={{ backgroundColor: isOnline ? '#FF6B35' : '#10B981' }}>
-                  {toggling ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : <Power className="w-5 h-5 text-white" />}
+              <div className="absolute right-3 bottom-3 z-20 flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    if (navigator.geolocation && mapRef.current) {
+                      navigator.geolocation.getCurrentPosition((pos) => {
+                        mapRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 15)
+                      })
+                    }
+                  }}
+                  className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center"
+                >
+                  <Navigation className="w-5 h-5 text-gray-700" />
                 </button>
-              )}
+              </div>
             </div>
 
-            {/* Floating bottom card (over map) — Talabat style */}
-            <div className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-2xl shadow-2xl px-5 py-4 pb-6"
-              style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            {/* Fixed bottom card — always visible */}
+            <div className="fixed bottom-0 left-0 right-0 z-30 bg-white rounded-t-2xl shadow-2xl px-5 py-4 max-w-2xl mx-auto"
+              style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
               {/* Active Order */}
               {activeOrder ? (
                 <ActiveOrderCard order={activeOrder} busy={busy} onPickup={handlePickup} onDeliver={handleDeliver} />
@@ -389,14 +378,12 @@ export default function DriverPage() {
                     <p className="text-gray-800 text-sm font-medium">
                       {!driver ? 'جاري تحميل البيانات...' : isOnline ? 'لا يوجد طلبات حالياً' : 'أنت غير متصل'}
                     </p>
-                    {!mapReady && (
-                      <button onClick={handleToggle} disabled={toggling || !driver}
-                        className="flex items-center gap-2 px-4 h-9 rounded-full font-medium text-white text-sm disabled:opacity-50"
-                        style={{ backgroundColor: isOnline ? '#FF6B35' : '#10B981' }}>
-                        {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
-                        {isOnline ? 'إيقاف' : 'ابدأ'}
-                      </button>
-                    )}
+                    <button onClick={handleToggle} disabled={toggling || !driver}
+                      className="flex items-center gap-2 px-4 h-9 rounded-full font-medium text-white text-sm disabled:opacity-50"
+                      style={{ backgroundColor: isOnline ? '#FF6B35' : '#10B981' }}>
+                      {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
+                      {isOnline ? 'إيقاف' : 'ابدأ'}
+                    </button>
                   </div>
                   <p className="text-gray-500 text-xs">
                     {!driver ? 'يرجى الانتظار...' : isOnline ? 'يمكنك الانتظار للحصول على طلب جديد' : 'اضغط على زر "ابدأ" للاتصال واستقبال الطلبات'}
@@ -434,7 +421,7 @@ export default function DriverPage() {
                 </>
               )}
             </div>
-          </div>
+          </>
         )}
 
         {/* ===== EARNINGS TAB ===== */}
