@@ -4,7 +4,7 @@ import {
   Bike, Phone, Lock, Loader2, Eye, EyeOff, AlertCircle,
   Power, Package, Star, LogOut, User, Wallet, Clock,
   Store, MapPin, Navigation, CheckCircle2, X, ChevronDown,
-  TrendingUp, ArrowLeft, Home, Map as MapIcon,
+  TrendingUp, ArrowLeft, Home, Map as MapIcon, Headphones,
 } from 'lucide-react'
 import { useAuth } from '@/store/auth'
 import { useDriver } from '@/store/driver'
@@ -311,12 +311,12 @@ export default function DriverPage() {
         ))}
       </div>
 
-      <main className="p-4 max-w-2xl mx-auto pb-20">
-        {/* ===== HOME TAB ===== */}
+      <main className="max-w-2xl mx-auto pb-20">
+        {/* ===== HOME TAB — Talabat Rider style ===== */}
         {tab === 'home' && (
-          <div className="space-y-4">
-            {/* Map */}
-            <div className="relative rounded-xl overflow-hidden shadow-sm border border-gray-100" style={{ height: '300px' }}>
+          <div className="relative">
+            {/* Full-screen map */}
+            <div className="relative w-full" style={{ height: 'calc(100dvh - 112px)' }}>
               <div ref={mapContainerRef} className="absolute inset-0" />
               {/* Map loading/error overlay */}
               {(!mapReady || mapError) && (
@@ -334,72 +334,106 @@ export default function DriverPage() {
                   )}
                 </div>
               )}
-              {/* Recenter button */}
+
+              {/* Top floating bar (over map) */}
+              <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between">
+                <button className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
+                  <Headphones className="w-5 h-5 text-gray-700" />
+                </button>
+                <div className="bg-white/95 backdrop-blur px-4 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+                  <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                  <span className="text-xs font-bold">{isOnline ? 'متصل' : 'غير متصل'}</span>
+                </div>
+                <button onClick={handleLogout} className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
+                  <LogOut className="w-5 h-5 text-gray-700" />
+                </button>
+              </div>
+
+              {/* Side buttons (right) */}
               {mapReady && (
-                <button
-                  onClick={() => {
-                    if (navigator.geolocation && mapRef.current) {
-                      navigator.geolocation.getCurrentPosition((pos) => {
-                        mapRef.current?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 15 })
-                      })
-                    }
-                  }}
-                  className="absolute bottom-3 left-3 z-20 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center"
-                >
-                  <Navigation className="w-5 h-5 text-gray-700" />
+                <div className="absolute right-3 bottom-24 z-20 flex flex-col gap-2">
+                  <button
+                    onClick={() => {
+                      if (navigator.geolocation && mapRef.current) {
+                        navigator.geolocation.getCurrentPosition((pos) => {
+                          mapRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 15)
+                        })
+                      }
+                    }}
+                    className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center"
+                  >
+                    <Navigation className="w-5 h-5 text-gray-700" />
+                  </button>
+                </div>
+              )}
+
+              {/* Online/Offline toggle button (right, above recenter) */}
+              {mapReady && (
+                <button onClick={handleToggle} disabled={toggling || !driver}
+                  className="absolute right-3 bottom-4 z-20 w-10 h-10 rounded-full shadow-lg flex items-center justify-center disabled:opacity-50"
+                  style={{ backgroundColor: isOnline ? '#FF6B35' : '#10B981' }}>
+                  {toggling ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : <Power className="w-5 h-5 text-white" />}
                 </button>
               )}
             </div>
 
-            {/* Status */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h1 className="text-xl font-bold">{isOnline ? '🟢 متصل' : '🔴 غير متصل'}</h1>
-                  <p className="text-sm text-gray-500 mt-1">{isOnline ? 'جاهز لاستقبال الطلبات' : 'اضغط للبدء'}</p>
-                </div>
-                <button onClick={handleToggle} disabled={toggling || !driver}
-                  className="flex items-center gap-2 px-5 h-11 rounded-xl font-medium text-white transition-all active:scale-95 disabled:opacity-50"
-                  style={{ backgroundColor: isOnline ? '#FF6B35' : '#10B981' }}>
-                  {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
-                  {isOnline ? 'إيقاف' : 'ابدأ'}
-                </button>
-              </div>
+            {/* Floating bottom card (over map) — Talabat style */}
+            <div className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-2xl shadow-2xl px-5 py-4 pb-6"
+              style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
+              {/* Active Order */}
+              {activeOrder ? (
+                <ActiveOrderCard order={activeOrder} busy={busy} onPickup={handlePickup} onDeliver={handleDeliver} />
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-gray-800 text-sm font-medium">
+                      {!driver ? 'جاري تحميل البيانات...' : isOnline ? 'لا يوجد طلبات حالياً' : 'أنت غير متصل'}
+                    </p>
+                    {!mapReady && (
+                      <button onClick={handleToggle} disabled={toggling || !driver}
+                        className="flex items-center gap-2 px-4 h-9 rounded-full font-medium text-white text-sm disabled:opacity-50"
+                        style={{ backgroundColor: isOnline ? '#FF6B35' : '#10B981' }}>
+                        {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
+                        {isOnline ? 'إيقاف' : 'ابدأ'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-gray-500 text-xs">
+                    {!driver ? 'يرجى الانتظار...' : isOnline ? 'يمكنك الانتظار للحصول على طلب جديد' : 'اضغط على زر "ابدأ" للاتصال واستقبال الطلبات'}
+                  </p>
+
+                  {/* Stats row */}
+                  {driver && (
+                    <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <Package className="w-4 h-4" />
+                        <span>{driver.total_deliveries ?? 0} توصيلة</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <Star className="w-4 h-4" />
+                        <span>{(driver.rating ?? 5).toFixed(1)} ⭐</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <Bike className="w-4 h-4" />
+                        <span>{driver.vehicle_type}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error */}
+                  {error && (
+                    <div className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded-lg">⚠️ {error}</div>
+                  )}
+
+                  {/* No driver data */}
+                  {!driver && driverLoaded && (
+                    <div className="mt-2 text-xs text-yellow-700 bg-yellow-50 p-2 rounded-lg">
+                      ⚠️ بيانات المندوب غير متاحة — تواصل مع الإدارة
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard icon={Package} label="طلبات اليوم" value={driver?.total_deliveries ?? 0} />
-              <StatCard icon={Star} label="التقييم" value={`${(driver?.rating ?? 5).toFixed(1)} ⭐`} />
-            </div>
-
-            {/* Error */}
-            {error && <ErrorBox message={error} />}
-
-            {/* No driver data */}
-            {!driver && driverLoaded && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-                <div><p className="text-sm font-medium text-yellow-800">بيانات المندوب غير متاحة</p>
-                  <p className="text-xs text-yellow-700 mt-1">تواصل مع الإدارة لتفعيل حسابك في نظام التوصيل.</p></div>
-              </div>
-            )}
-
-            {/* Active Order */}
-            {activeOrder && <ActiveOrderCard order={activeOrder} busy={busy} onPickup={handlePickup} onDeliver={handleDeliver} />}
-
-            {/* Driver Info */}
-            {driver && (
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                <h2 className="font-bold mb-3 flex items-center gap-2"><User className="w-4 h-4" /> معلومات المندوب</h2>
-                <div className="space-y-2 text-sm">
-                  <InfoRow label="المعرف" value={driver.id} mono />
-                  <InfoRow label="المركبة" value={driver.vehicle_type} />
-                  <InfoRow label="رقم اللوحة" value={driver.license_plate} />
-                  <InfoRow label="معدل القبول" value={`${driver.acceptance_rate}%`} />
-                </div>
-              </div>
-            )}
           </div>
         )}
 
