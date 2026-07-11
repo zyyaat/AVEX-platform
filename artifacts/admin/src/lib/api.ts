@@ -154,12 +154,13 @@ export const adminAPI = {
 
   // Restaurants (exists in catalog module)
   getRestaurants: () => apiFetch<any>('/admin/restaurants?all=true').then(r => {
+    console.log('getRestaurants response:', JSON.stringify(r).slice(0, 200))
     if (Array.isArray(r)) return r
     if (r.Items) return r.Items
     if (r.items) return r.items
     if (r.restaurants) return r.restaurants
     return []
-  }).catch(() => []),
+  }).catch((e) => { console.error('getRestaurants error:', e.message); return [] }),
   createRestaurant: (data: any) => apiFetch<{ id: string; merchantPhone: string; merchantPassword: string }>('/admin/restaurants', { method: 'POST', body: JSON.stringify(data) }),
   updateRestaurant: (id: string, data: any) => apiFetch(`/admin/restaurants/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteRestaurant: (id: string) => apiFetch(`/admin/restaurants/${id}`, { method: 'DELETE' }),
