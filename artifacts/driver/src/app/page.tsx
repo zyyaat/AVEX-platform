@@ -77,111 +77,99 @@ export default function DriverPage() {
     if (tab === 'history') refreshHistory()
   }, [tab, refreshWallet, refreshHistory])
 
-  // ===== Map: load only on home tab when authenticated =====
+  // ===== Map: Leaflet (lightweight, fast, no token needed) =====
   useEffect(() => {
     if (tab !== 'home' || !isAuthenticated) return
     if (mapRef.current || !mapContainerRef.current) return
 
     let cancelled = false
 
-    // Get Mapbox token from env or Replit Secrets
-    const MAPBOX_TOKEN =
-      (import.meta.env.VITE_MAPBOX_TOKEN as string) ||
-      (typeof window !== 'undefined' && (window as any).__MAPBOX_ACCESS_TOKEN) ||
-      ''
-
-    if (!MAPBOX_TOKEN) {
-      setMapError('مفتاح الخريطة غير متوفر — تواصل مع الإدارة')
-      return
-    }
-
-    // Load Mapbox CSS
-    if (!document.querySelector('#mapbox-gl-css')) {
+    // Load Leaflet CSS (tiny — 14KB)
+    if (!document.querySelector('#leaflet-css')) {
       const link = document.createElement('link')
-      link.id = 'mapbox-gl-css'
+      link.id = 'leaflet-css'
       link.rel = 'stylesheet'
-      link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.5.2/mapbox-gl.css'
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
       document.head.appendChild(link)
     }
 
-    // Load Mapbox JS (or reuse if already loaded)
-    const initMap = (mbgl: any) => {
+    // Load Leaflet JS (tiny — 40KB vs Mapbox 200KB) and init map
+    const initMap = (L: any) => {
       if (cancelled || !mapContainerRef.current) return
       try {
-        mbgl.accessToken = MAPBOX_TOKEN
-        const map = new mbgl.Map({
-          container: mapContainerRef.current,
-          style: 'mapbox://styles/mapbox/streets-v12',
-          center: [31.2357, 30.0444], // Cairo
+        const map = L.map(mapContainerRef.current, {
+          center: [30.0444, 31.2357], // Cairo [lat, lng]
           zoom: 13,
+          zoomControl: true,
           attributionControl: false,
         })
 
-        map.on('load', () => {
-          if (cancelled) return
-          setMapReady(true)
-          setMapError(null)
-          setTimeout(() => map.resize(), 200)
+        // Use free CARTO tiles (no token, fast CDN, light theme)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+          maxZoom: 19,
+          subdomains: 'abcd',
+        }).addTo(map)
 
-          // Try to get user location
-          if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                if (!cancelled) {
-                  map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 })
-                }
-              },
-              () => {},
-              { enableHighAccuracy: true, timeout: 5000 }
-            )
-          }
-        })
+        // Add driver marker
+        const driverMarker = L.marker([30.0444, 31.2357]).addTo(map)
+        driverMarker.bindPopup('موقعك الحالي').openPopup()
 
-        map.on('error', (e: any) => {
-          console.error('Mapbox error:', e?.error?.message || e)
-        })
-
-        map.addControl(new mbgl.NavigationControl(), 'top-left')
         mapRef.current = map
+        setMapReady(true)
+        setMapError(null)
+
+        // Try to get user location and move map
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              if (cancelled || !mapRef.current) return
+              const lat = pos.coords.latitude
+              const lng = pos.coords.longitude
+              mapRef.current.setView([lat, lng], 14)
+              driverMarker.setLatLng([lat, lng])
+            },
+            () => {},
+            { enableHighAccuracy: true, timeout: 5000 }
+          )
+        }
+
+        // Fix size after render
+        setTimeout(() => {
+          if (!cancelled && mapRef.current) {
+            mapRef.current.invalidateSize()
+          }
+        }, 100)
       } catch (err: any) {
-        console.error('Map init error:', err)
+        console.error('Leaflet init error:', err)
         setMapError(err.message || 'فشل تحميل الخريطة')
       }
     }
 
-    if ((window as any).mapboxgl) {
-      initMap((window as any).mapboxgl)
+    if ((window as any).L) {
+      initMap((window as any).L)
     } else {
       const script = document.createElement('script')
-      script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.5.2/mapbox-gl.js'
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
       script.onload = () => {
-        if (!cancelled && (window as any).mapboxgl) {
-          initMap((window as any).mapboxgl)
+        if (!cancelled && (window as any).L) {
+          initMap((window as any).L)
         }
       }
       script.onerror = () => {
-        if (!cancelled) setMapError('فشل تحميل Mapbox CDN')
+        if (!cancelled) setMapError('فشل تحميل الخريطة')
       }
       document.head.appendChild(script)
     }
 
-    // Timeout safety — if map doesn't load in 8s, show placeholder
-    const timeout = setTimeout(() => {
-      if (!cancelled && !mapReady) {
-        setMapReady(true) // show the map container anyway
-      }
-    }, 8000)
-
     return () => {
       cancelled = true
-      clearTimeout(timeout)
       if (mapRef.current) {
         mapRef.current.remove()
         mapRef.current = null
       }
       setMapReady(false)
     }
-  }, [tab, isAuthenticated, mapReady])
+  }, [tab, isAuthenticated])
 
   // ===== Login =====
   const handleLogin = async (e: React.FormEvent) => {
