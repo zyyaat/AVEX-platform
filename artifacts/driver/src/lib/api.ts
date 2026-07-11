@@ -133,13 +133,29 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const res = await fetch(url, { ...options, headers })
 
   if (res.status === 401) {
-    // Clear the in-memory token.
-    setAuthToken(null)
-    // DON'T redirect from inside apiFetch — this causes infinite reload loops.
-    // Instead, just throw the error and let the calling code decide what to do.
-    // The auth store's initialize() will detect the 401 and log out gracefully.
-    // The route guard in page.tsx will redirect to /login if isAuthenticated=false.
-    throw new Error('انتهت الجلسة — يرجى تسجيل الدخول مرة أخرى')
+    // 401 can mean two things:
+    // 1. Wrong credentials at login (backend returns "invalid phone or password")
+    // 2. Expired/invalid token on authenticated endpoints ("invalid or expired token")
+    // We must extract the ACTUAL error message — not show a generic "session expired".
+    let errorMsg = 'انتهت الجلسة — يرجى تسجيل الدخول مرة أخرى'
+    try {
+      const errBody = await res.json()
+      if (typeof errBody.error === 'string') {
+        errorMsg = errBody.error
+      } else if (errBody.error && typeof errBody.error.message === 'string') {
+        errorMsg = errBody.error.message
+      } else if (typeof errBody.message === 'string') {
+        errorMsg = errBody.message
+      }
+    } catch {}
+    // Only clear the token if this is NOT a login/register endpoint.
+    // Login/register return 401 for wrong credentials — we don't want to
+    // clear a non-existent token (it's already null) and confuse the auth store.
+    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/driver/login') || url.includes('/auth/driver/register')
+    if (!isAuthEndpoint) {
+      setAuthToken(null)
+    }
+    throw new Error(errorMsg)
   }
 
   if (!res.ok) {

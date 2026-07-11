@@ -43,10 +43,27 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
   const res = await fetch(url, { ...options, headers })
   if (res.status === 401) {
-    // Clear the in-memory token. Don't redirect — let the auth store
-    // handle it gracefully via initialize() + route guard.
-    setAuthToken(null)
-    throw new Error('انتهت الجلسة')
+    // 401 can mean two things:
+    // 1. Wrong credentials at login (backend returns "invalid phone or password")
+    // 2. Expired/invalid token on authenticated endpoints ("invalid or expired token")
+    // We must extract the ACTUAL error message — not show a generic "session expired".
+    let errorMsg = 'انتهت الجلسة — يرجى تسجيل الدخول مرة أخرى'
+    try {
+      const errBody = await res.json()
+      if (typeof errBody.error === 'string') {
+        errorMsg = errBody.error
+      } else if (errBody.error && typeof errBody.error.message === 'string') {
+        errorMsg = errBody.error.message
+      } else if (typeof errBody.message === 'string') {
+        errorMsg = errBody.message
+      }
+    } catch {}
+    // Only clear the token if this is NOT a login/register endpoint.
+    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/driver/login') || url.includes('/auth/driver/register')
+    if (!isAuthEndpoint) {
+      setAuthToken(null)
+    }
+    throw new Error(errorMsg)
   }
   if (!res.ok) {
     // Backend returns { error: { message: "...", code: "..." } } (nested object).
