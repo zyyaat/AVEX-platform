@@ -8,16 +8,16 @@ import { toast } from 'sonner'
 
 export default function SupportPage() {
   const router = useRouter()
-  const { isAuthenticated, userID } = useAuth()
+  const { isAuthenticated, isInitialized, userID } = useAuth()
   const [tickets, setTickets] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!isAuthenticated) { router.replace('/login'); return }
+    if (!isInitialized) return; if (!isAuthenticated) { router.replace('/login'); return }
     if (!userID) return
     setLoading(true)
     supportAPI.listMyTickets(userID).then(res => setTickets(res.items || [])).catch(() => {}).finally(() => setLoading(false))
-  }, [isAuthenticated, router, userID])
+  }, [isInitialized, isAuthenticated, router, userID])
 
   return (
     <div className="min-h-dvh bg-gray-50 pb-16" dir="rtl">

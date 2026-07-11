@@ -8,14 +8,14 @@ import { BottomTabBar } from '@/components/BottomTabBar'
 
 export default function HistoryPage() {
   const router = useRouter()
-  const { isAuthenticated, userID } = useAuth()
+  const { isAuthenticated, isInitialized, userID } = useAuth()
   const { driver, fetchDriver } = useDriver()
   const [orders, setOrders] = useState<any[]>([])
 
   useEffect(() => {
-    if (!isAuthenticated) { router.replace('/login'); return }
+    if (!isInitialized) return; if (!isAuthenticated) { router.replace('/login'); return }
     fetchDriver()
-  }, [isAuthenticated, router, fetchDriver])
+  }, [isInitialized, isAuthenticated, router, fetchDriver])
 
   useEffect(() => {
     if (!driver) return

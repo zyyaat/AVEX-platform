@@ -7,13 +7,13 @@ import { BottomTabBar } from '@/components/BottomTabBar'
 
 export default function EarningsPage() {
   const router = useRouter()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isInitialized } = useAuth()
   const { driver, fetchDriver } = useDriver()
 
   useEffect(() => {
-    if (!isAuthenticated) { router.replace('/login'); return }
+    if (!isInitialized) return; if (!isAuthenticated) { router.replace('/login'); return }
     fetchDriver()
-  }, [isAuthenticated, router, fetchDriver])
+  }, [isInitialized, isAuthenticated, router, fetchDriver])
 
   return (
     <div className="min-h-dvh bg-gray-50 pb-16" dir="rtl">

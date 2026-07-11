@@ -78,8 +78,11 @@ export const menuAPI = {
 
 export const ordersAPI = {
   create: (data: any) => apiFetch<{ order: any }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
-  getMyOrders: () => apiFetch<{ orders: any[] }>('/orders').catch(() => ({ orders: [] })),
-  trackByNumber: (orderNumber: string) => apiFetch<{ order: any }>(`/orders/track?number=${encodeURIComponent(orderNumber)}`),
+  // FIXED: was '/orders' (admin endpoint), now '/orders/my' (user's orders)
+  // Response shape is { items, total } (Page wrapper), not { orders }
+  getMyOrders: () => apiFetch<{ items: any[]; total: number }>('/orders/my').catch(() => ({ items: [], total: 0 })),
+  // FIXED: was query '?number=X', backend expects path param '/orders/track/{orderNumber}'
+  trackByNumber: (orderNumber: string) => apiFetch<any>(`/orders/track/${encodeURIComponent(orderNumber)}`),
 }
 
 export const couponsAPI = {

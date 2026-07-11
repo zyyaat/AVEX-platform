@@ -8,13 +8,13 @@ import { toast } from 'sonner'
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { isAuthenticated, logout, userID } = useAuth()
+  const { isAuthenticated, isInitialized, logout, userID } = useAuth()
   const { driver, fetchDriver } = useDriver()
 
   useEffect(() => {
-    if (!isAuthenticated) { router.replace('/login'); return }
+    if (!isInitialized) return; if (!isAuthenticated) { router.replace('/login'); return }
     fetchDriver()
-  }, [isAuthenticated, router, fetchDriver])
+  }, [isInitialized, isAuthenticated, router, fetchDriver])
 
   const handleLogout = () => {
     logout()

@@ -131,29 +131,24 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
     setLoading(true)
 
     try {
-      const response = await fetch('/api/v1/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerName,
-          phone,
-          paymentMethod,
-          locationLat: location.lat,
-          locationLng: location.lng,
-          locationAddress: location.address,
-          items: items.map((i) => ({
-            menuItemId: i.id,
-            quantity: i.quantity,
-          })),
-        }),
+      // FIXED: use ordersAPI.create() instead of raw fetch()
+      // This ensures: (1) Authorization header is sent, (2) response is
+      // unwrapped from { data: ... }, (3) snake_case → camelCase transform
+      // is applied, (4) 401 is handled gracefully.
+      const order = await ordersAPI.create({
+        // Backend expects snake_case field names (CreateOrderRequest)
+        customer_name: customerName,
+        phone,
+        payment_method: paymentMethod,
+        location_lat: location.lat,
+        location_lng: location.lng,
+        location_address: location.address,
+        items: items.map((i) => ({
+          menu_item_id: i.id,
+          quantity: i.quantity,
+        })),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to create order')
-      }
-
-      const data = await response.json()
       clearCart()
       // Reset form
       setCustomerName('')
@@ -161,7 +156,8 @@ export function CheckoutDialog({ open, onOpenChange, onSuccess }: CheckoutDialog
       setPaymentMethod('cash')
       handleResetLocation()
       onOpenChange(false)
-      onSuccess(data.order.orderNumber)
+      // order is already camelCased by transformer, so order.orderNumber works
+      onSuccess(order.orderNumber || order.id || '')
     } catch (error) {
       console.error(error)
       const msg = error instanceof Error ? error.message : 'حدث خطأ أثناء إنشاء الطلب'

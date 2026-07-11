@@ -38,7 +38,8 @@ export function MyOrders({ onBack, onLoginRequired }: MyOrdersProps) {
   const fetchOrders = async () => {
     try {
       const data = await ordersAPI.getMyOrders()
-      setOrders(data.orders || [])
+      // FIXED: response shape is { items, total }, not { orders }
+      setOrders(data.items || [])
     } catch {} finally { setLoading(false) }
   }
 
