@@ -52,7 +52,6 @@ export default function DriverHome() {
     fetchDriver, setOnline, setOffline,
   } = useDriver()
 
-  const [bootChecked, setBootChecked] = useState(false)
   const [togglingOnline, setTogglingOnline] = useState(false)
   const [activeOffer, setActiveOffer] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -88,20 +87,21 @@ export default function DriverHome() {
     interval: 5000,
   })
 
-  // ===== Boot =====
-  // CRITICAL: Wait for isInitialized before checking isAuthenticated.
-  // Without this, the route guard fires BEFORE initialize() has a chance
-  // to restore the session from localStorage, causing an immediate redirect
-  // to /login even when the user just logged in.
+  // ===== Route guard (same pattern as customer app) =====
+  // If not authenticated, redirect to /login.
+  // No bootChecked state — just redirect immediately.
   useEffect(() => {
-    if (!isInitialized) return  // ← wait for initialize() to complete
-    if (!isAuthenticated) {
+    if (isInitialized && !isAuthenticated) {
       router.replace('/login')
-      return
     }
-    setBootChecked(true)
-    fetchDriver()
-  }, [isInitialized, isAuthenticated, router, fetchDriver])
+  }, [isInitialized, isAuthenticated, router])
+
+  // ===== Fetch driver data when authenticated =====
+  useEffect(() => {
+    if (isAuthenticated && userID) {
+      fetchDriver()
+    }
+  }, [isAuthenticated, userID, fetchDriver])
 
   // ===== WebSocket subscribe =====
   useEffect(() => {
@@ -113,7 +113,7 @@ export default function DriverHome() {
 
   // ===== Initialize Mapbox =====
   useEffect(() => {
-    if (!bootChecked || !mapContainerRef.current || mapRef.current) return
+    if (!isAuthenticated || !mapContainerRef.current || mapRef.current) return
 
     let cancelled = false
 
@@ -180,7 +180,7 @@ export default function DriverHome() {
         mapRef.current = null
       }
     }
-  }, [bootChecked])
+  }, [isAuthenticated])
 
   // ===== Auto-refresh offers =====
   useEffect(() => {
@@ -214,12 +214,19 @@ export default function DriverHome() {
     }
   }
 
-  if (!bootChecked) {
+  // Show loading spinner only while initializing (brief moment)
+  if (!isInitialized) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-white">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     )
+  }
+
+  // If not authenticated, the route guard above will redirect to /login.
+  // Show nothing here (the redirect is in progress).
+  if (!isAuthenticated) {
+    return null
   }
 
   const isOnline = driver?.status === 'online' || driver?.status === 'busy'
