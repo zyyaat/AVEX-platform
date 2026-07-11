@@ -66,3 +66,26 @@ func (s *Service) VerifyDriverAccount(ctx context.Context, driverID string) erro
 
 // suppress unused import
 var _ = fmt.Errorf
+
+// AdminCreateDriver creates a driver in identity.drivers (verified + active)
+// and returns the identity driver ID. The caller (admin handler) then
+// registers the driver in dispatch.drivers using the dispatch service.
+func (s *Service) AdminCreateDriver(ctx context.Context, input port.AdminCreateDriverInput) (string, error) {
+	// Register the driver in identity.drivers with auto-verify
+	result, err := s.RegisterDriver(ctx, port.RegisterDriverInput{
+		Name:          input.Name,
+		Phone:         input.Phone,
+		Password:      input.Password,
+		VehicleType:   input.VehicleType,
+		LicenseNumber: input.LicenseNumber,
+		NationalID:    input.NationalID,
+		AutoVerify:    true,
+	})
+	if err != nil {
+		return "", err
+	}
+	if result.Driver == nil {
+		return "", fmt.Errorf("driver creation succeeded but driver DTO is nil")
+	}
+	return result.Driver.ID, nil
+}

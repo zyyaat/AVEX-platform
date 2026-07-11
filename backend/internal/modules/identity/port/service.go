@@ -248,4 +248,21 @@ type ServicePort interface {
 
         // VerifyDriverAccount sets is_verified=true and is_active=true for the given driver.
         VerifyDriverAccount(ctx context.Context, driverID string) error
+
+
+        // AdminCreateDriver creates a driver in identity.drivers (verified + active)
+        // AND returns the identity driver ID so the caller can register in dispatch.drivers.
+        AdminCreateDriver(ctx context.Context, input AdminCreateDriverInput) (driverID string, err error)
+}
+
+// AdminCreateDriverInput holds all fields needed to create a complete driver.
+type AdminCreateDriverInput struct {
+        Name          string
+        Phone         string
+        Password      string
+        VehicleType   string // motorcycle | car | scooter | bike
+        LicenseNumber string
+        NationalID    string
+        LicensePlate  string
+        ZoneIDs       []string
 }

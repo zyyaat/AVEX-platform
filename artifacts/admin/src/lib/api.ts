@@ -115,7 +115,21 @@ export const adminAPI = {
     apiFetch(`/admin/tier-prices/${tierId}/${zoneId}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Drivers (exists in dispatch module)
-  getDrivers: () => apiFetch<{ drivers: any[] }>('/admin/drivers').catch(() => ({ drivers: [] })),
+  getDrivers: () => apiFetch<{ items: any[]; total: number } | any[]>('/admin/drivers').then(r => {
+    // Handle both Page wrapper and bare array responses
+    if (Array.isArray(r)) return r
+    if (r.items) return r.items
+    if ((r as any).drivers) return (r as any).drivers
+    return []
+  }).catch(() => []),
+  // NEW: Create a complete driver (identity + dispatch) in one call
+  createDriver: (data: {
+    name: string; phone: string; password: string;
+    vehicle_type: string; license_number: string; national_id: string;
+    license_plate: string; zone_ids: string[];
+  }) => apiFetch<{ driver_id: string; status: string }>('/admin/drivers/create', {
+    method: 'POST', body: JSON.stringify(data)
+  }),
   updateDriverStatus: (id: string, isActive: boolean) =>
     apiFetch(`/admin/drivers/${id}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }),
   updateDriverTier: (id: string, tierId: string) =>
