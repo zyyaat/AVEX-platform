@@ -57,6 +57,16 @@ func RegisterRoutes(mux *http.ServeMux, svc port.ServicePort, cfg RoutesConfig) 
         mux.Handle("GET /api/v1/drivers/me", driverAuth(http.HandlerFunc(h.GetDriverMe)))
         mux.Handle("PATCH /api/v1/drivers/status", driverAuth(http.HandlerFunc(h.UpdateDriverStatus)))
 
+        // ----- Merchant routes (merchant role) -----
+        // NEW: /merchants/me endpoint for the merchant app
+        merchantAuth := RequireRole(cfg.JWTIssuer, cfg.Logger, "merchant")
+        mux.Handle("GET /api/v1/merchants/me", merchantAuth(http.HandlerFunc(h.GetMerchantMe)))
+
+        // ----- Agent routes (agent role) -----
+        // NEW: /agents/me endpoint for the support app
+        agentAuth := RequireRole(cfg.JWTIssuer, cfg.Logger, "agent")
+        mux.Handle("GET /api/v1/agents/me", agentAuth(http.HandlerFunc(h.GetAgentMe)))
+
         // ----- Admin routes (admin role) -----
         adminAuth := RequireRole(cfg.JWTIssuer, cfg.Logger, "admin")
         mux.Handle("POST /api/v1/admin/drivers/suspend", adminAuth(http.HandlerFunc(h.SuspendDriver)))

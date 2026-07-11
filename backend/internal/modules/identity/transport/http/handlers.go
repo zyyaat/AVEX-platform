@@ -239,6 +239,45 @@ func (h *Handler) GetDriverMe(w http.ResponseWriter, r *http.Request) {
         writeJSON(w, http.StatusOK, driver)
 }
 
+// GetMerchantMe handles GET /merchants/me.
+// Requires authentication (merchant role).
+// Returns the merchant's profile (linked restaurant, settings, etc.).
+func (h *Handler) GetMerchantMe(w http.ResponseWriter, r *http.Request) {
+        actor := actorFromContext(r.Context())
+        if actor == nil {
+                writeAuthError(w, "authentication required")
+                return
+        }
+
+        merchant, err := h.svc.GetMerchantProfile(r.Context(), actor.Subject)
+        if err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+        writeJSON(w, http.StatusOK, merchant)
+}
+
+// GetAgentMe handles GET /agents/me.
+// Requires authentication (agent role).
+// Returns the support agent's profile.
+// NOTE: Agents are stored as users with role='agent' in identity.users.
+// This endpoint returns the user profile (same as /users/me but for agents).
+func (h *Handler) GetAgentMe(w http.ResponseWriter, r *http.Request) {
+        actor := actorFromContext(r.Context())
+        if actor == nil {
+                writeAuthError(w, "authentication required")
+                return
+        }
+
+        // Agents are users with role='agent'. Return the user profile.
+        user, err := h.svc.GetUser(r.Context(), actor.Subject)
+        if err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+        writeJSON(w, http.StatusOK, user)
+}
+
 // UpdateDriverStatus handles PATCH /drivers/status.
 // Requires authentication (driver role).
 func (h *Handler) UpdateDriverStatus(w http.ResponseWriter, r *http.Request) {

@@ -160,7 +160,9 @@ export const merchantAuthAPI = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  me: () => apiFetch<Merchant>('/users/me').catch(() => null),
+  // FIXED: was /users/me (user endpoint, returns UserDTO), now /merchants/me
+  // (merchant endpoint, returns MerchantProfileDTO with restaurant info)
+  me: () => apiFetch<any>('/merchants/me').catch(() => null),
 }
 
 export const merchantAPI = {

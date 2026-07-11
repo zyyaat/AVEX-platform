@@ -52,7 +52,8 @@ export const agentAuthAPI = {
   // Support agents use the standard user login
   login: (data: { phone: string; password: string }) =>
     apiFetch<{ token: string; user: any; agent?: any; must_change_password: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  me: () => apiFetch<any>('/users/me').catch(() => null),
+  // FIXED: was /users/me (user endpoint), now /agents/me (agent endpoint)
+  me: () => apiFetch<any>('/agents/me').catch(() => null),
 }
 
 export const agentAPI = {
