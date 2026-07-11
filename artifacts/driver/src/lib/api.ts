@@ -131,23 +131,12 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   const res = await fetch(url, { ...options, headers })
 
   if (res.status === 401) {
-    // Clear the in-memory token, but DON'T redirect immediately.
-    // The auth store's initialize() will handle the redirect gracefully.
-    // This prevents the "page reloads constantly" issue.
+    // Clear the in-memory token.
     setAuthToken(null)
-    // Only redirect if we're NOT already on the login page (to avoid loops)
-    if (typeof window !== 'undefined') {
-      const currentPath = window.location.pathname
-      const loginPath = (import.meta.env.BASE_URL || '/') + 'login'
-      if (!currentPath.endsWith('/login')) {
-        // Use a soft redirect via state change, not a hard navigation
-        // that could interrupt React rendering.
-        setTimeout(() => {
-          const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
-          window.location.href = `${base}/login`
-        }, 100)
-      }
-    }
+    // DON'T redirect from inside apiFetch — this causes infinite reload loops.
+    // Instead, just throw the error and let the calling code decide what to do.
+    // The auth store's initialize() will detect the 401 and log out gracefully.
+    // The route guard in page.tsx will redirect to /login if isAuthenticated=false.
     throw new Error('انتهت الجلسة — يرجى تسجيل الدخول مرة أخرى')
   }
 
