@@ -5,27 +5,32 @@
 # Starts the FULL stack natively on Replit (NO Docker):
 #   1. PostgreSQL (via Replit postgresql-16 module)
 #   2. Redis (via Nix package, started as daemon)
-#   3. Backend API server (Go)
-#   4. Backend worker (Go) — for outbox + notifications jobs
+#   3. Backend API server (Go) — runs in FOREGROUND to keep workflow alive
+#   4. Backend worker (Go) — runs in background
+#
+# IMPORTANT for Replit: The server MUST run in the foreground (not background).
+# If this script exits, Replit kills ALL child processes, including the server.
+# The script stays alive by blocking on the server process (`wait $SERVER_PID`).
 #
 # Frontend apps (driver, customer, admin, merchant, support) are auto-started
 # by Replit from their artifact.toml files — they appear as separate tabs in
 # the bottom panel of the Replit workspace. Do NOT start them here.
 #
 # Usage:
-#   ./run.sh              Start everything (interactive, logs to console)
+#   ./run.sh              Start everything (server in foreground)
 #   ./run.sh --background Start everything in background (logs to files)
 #   ./run.sh --stop       Stop all AVEX processes
 #   ./run.sh --status     Show status of all components
+#   ./run.sh --debug      Start with verbose debug output
 #
 # Required Replit Secrets (set via the lock icon in Replit sidebar):
 #   - JWT_SECRET          — random string ≥32 chars
 #   - MAPBOX_ACCESS_TOKEN — public token from https://account.mapbox.com/
-#
-# If running locally (not Replit), set these in your shell or .env file.
 # =============================================================================
 
-set -euo pipefail
+# Don't use `set -e` during startup — we want to handle errors gracefully.
+# We'll explicitly check critical commands instead.
+set -uo pipefail
 
 # -----------------------------------------------------------------------------
 # Colors for pretty output
@@ -36,21 +41,27 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-log()  { echo -e "${GREEN}[$(date +%H:%M:%S)]${NC} $*"; }
-warn() { echo -e "${YELLOW}[$(date +%H:%M:%S)] ⚠️  ${NC} $*"; }
+log()  { echo -e "${GREEN}[$(date +%H:%M:%S)]${NC} $*" >&2; }
+warn() { echo -e "${YELLOW}[$(date +%H:%M:%S)] ⚠️  ${NC} $*" >&2; }
 err()  { echo -e "${RED}[$(date +%H:%M:%S)] ❌ ${NC} $*" >&2; }
-info() { echo -e "${BLUE}[$(date +%H:%M:%S)] ℹ️  ${NC} $*"; }
+info() { echo -e "${BLUE}[$(date +%H:%M:%S)] ℹ️  ${NC} $*" >&2; }
+debug() { [ "${DEBUG:-0}" = "1" ] && echo -e "${BLUE}[$(date +%H:%M:%S)] 🔍 ${NC} $*" >&2 || true; }
 
 # -----------------------------------------------------------------------------
-# Resolve workspace directory (Replit: /home/runner/<repl-name>, local: script dir)
+# Resolve workspace directory
 # -----------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# -----------------------------------------------------------------------------
+# Parse arguments
+# -----------------------------------------------------------------------------
 BACKGROUND=false
+DEBUG=0
 ACTION="start"
 case "${1:-}" in
   --background) BACKGROUND=true ;;
+  --debug)      DEBUG=1; BACKGROUND=false ;;
   --stop)       ACTION="stop" ;;
   --status)     ACTION="status" ;;
   --help|-h)
@@ -58,23 +69,48 @@ case "${1:-}" in
     exit 0
     ;;
 esac
+export DEBUG
 
 # -----------------------------------------------------------------------------
-# STOP mode
+# Cleanup function — called on exit
 # -----------------------------------------------------------------------------
+cleanup() {
+  local exit_code=$?
+  if [ "$ACTION" = "start" ] && [ "$BACKGROUND" = "false" ]; then
+    log "Shutting down AVEX backend..."
+    if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+      kill "$SERVER_PID" 2>/dev/null
+      wait "$SERVER_PID" 2>/dev/null
+      log "Backend server stopped"
+    fi
+    if [ -n "${WORKER_PID:-}" ] && kill -0 "$WORKER_PID" 2>/dev/null; then
+      kill "$WORKER_PID" 2>/dev/null
+      wait "$WORKER_PID" 2>/dev/null
+      log "Backend worker stopped"
+    fi
+    # Don't kill Redis — it may be used by other things, and it's lightweight
+    # Don't kill PostgreSQL — managed by Replit module
+  fi
+  exit $exit_code
+}
+trap cleanup EXIT INT TERM
+
+# =============================================================================
+# STOP mode
+# =============================================================================
 if [ "$ACTION" = "stop" ]; then
   log "Stopping all AVEX processes..."
-  pkill -f "cmd/server"  2>/dev/null && log "Stopped backend server"   || info "Backend server not running"
-  pkill -f "cmd/worker"  2>/dev/null && log "Stopped backend worker"   || info "Backend worker not running"
-  pkill -f "redis-server" 2>/dev/null && log "Stopped Redis"           || info "Redis not running"
-  # Don't kill PostgreSQL on Replit — it's managed by the module
+  pkill -f "avex-server"   2>/dev/null && log "Stopped backend server"   || info "Backend server not running"
+  pkill -f "avex-worker"   2>/dev/null && log "Stopped backend worker"   || info "Backend worker not running"
+  pkill -f "redis-server"  2>/dev/null && log "Stopped Redis"           || info "Redis not running"
+  # Don't kill PostgreSQL — managed by Replit module
   log "Done. (PostgreSQL is managed by Replit module — not stopped)"
   exit 0
 fi
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # STATUS mode
-# -----------------------------------------------------------------------------
+# =============================================================================
 if [ "$ACTION" = "status" ]; then
   echo ""
   echo "AVEX Platform Status"
@@ -94,7 +130,7 @@ if [ "$ACTION" = "status" ]; then
   else
     echo -e "  Backend API: ${RED}❌ not running${NC}"
   fi
-  if pgrep -f "cmd/worker" >/dev/null 2>&1; then
+  if pgrep -f "avex-worker" >/dev/null 2>&1; then
     echo -e "  Worker:      ${GREEN}✅ running${NC}"
   else
     echo -e "  Worker:      ${RED}❌ not running${NC}"
@@ -108,104 +144,95 @@ fi
 # =============================================================================
 
 log "🚀 Starting AVEX Platform on Replit..."
+debug "SCRIPT_DIR=$SCRIPT_DIR"
+debug "BACKGROUND=$BACKGROUND"
+debug "DEBUG=$DEBUG"
 
 # -----------------------------------------------------------------------------
 # 1. Validate required environment variables (secrets)
 # -----------------------------------------------------------------------------
-validate_env() {
-  local missing=()
-  if [ -z "${JWT_SECRET:-}" ]; then
-    missing+=("JWT_SECRET")
-  fi
-  if [ -z "${MAPBOX_ACCESS_TOKEN:-}" ]; then
-    missing+=("MAPBOX_ACCESS_TOKEN")
-  fi
-  if [ ${#missing[@]} -gt 0 ]; then
-    err "Missing required environment variables: ${missing[*]}"
-    err ""
-    err "On Replit: set them as Secrets (lock icon in the left sidebar)."
-    err "Locally:   export JWT_SECRET='...' && export MAPBOX_ACCESS_TOKEN='...'"
-    err ""
-    err "To generate a JWT_SECRET:  openssl rand -hex 32"
-    err "To get a MAPBOX_ACCESS_TOKEN:  https://account.mapbox.com/access-tokens/"
-    exit 1
-  fi
-}
-
-validate_env
+log "🔑 Checking required secrets..."
+missing=()
+if [ -z "${JWT_SECRET:-}" ]; then
+  missing+=("JWT_SECRET")
+fi
+if [ -z "${MAPBOX_ACCESS_TOKEN:-}" ]; then
+  missing+=("MAPBOX_ACCESS_TOKEN")
+fi
+if [ ${#missing[@]} -gt 0 ]; then
+  err "Missing required secrets: ${missing[*]}"
+  err ""
+  err "On Replit: click the 🔒 lock icon in the left sidebar and add:"
+  err "  JWT_SECRET          → run 'openssl rand -hex 32' in the shell to generate"
+  err "  MAPBOX_ACCESS_TOKEN → get from https://account.mapbox.com/access-tokens/"
+  err ""
+  err "After adding secrets, click Run again."
+  exit 1
+fi
+log "✅ All required secrets are set"
+debug "JWT_SECRET length: ${#JWT_SECRET}"
+debug "MAPBOX_ACCESS_TOKEN starts with: ${MAPBOX_ACCESS_TOKEN:0:3}..."
 
 # -----------------------------------------------------------------------------
 # 2. Ensure PostgreSQL is running
 # -----------------------------------------------------------------------------
-ensure_postgres() {
-  log "📦 Checking PostgreSQL..."
-  # Replit's postgresql-16 module auto-starts on first query.
-  # We just need to wait for it.
-  for i in $(seq 1 30); do
-    if pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
-      log "✅ PostgreSQL is ready"
-      return 0
-    fi
-    # Try to wake it up with a connection attempt
-    if [ $i -eq 1 ]; then
-      info "PostgreSQL not yet responding, waiting for Replit module to start it..."
-    fi
-    sleep 1
-  done
-  err "PostgreSQL did not become ready within 30 seconds."
-  err "On Replit, the postgresql-16 module should start automatically."
-  err "Try opening a database shell in the Replit UI to trigger it, then re-run this script."
-  exit 1
-}
-
-ensure_postgres
+log "📦 Checking PostgreSQL..."
+for i in $(seq 1 30); do
+  if pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
+    log "✅ PostgreSQL is ready"
+    break
+  fi
+  if [ $i -eq 1 ]; then
+    info "PostgreSQL not yet responding, waiting for Replit module..."
+  fi
+  if [ $i -eq 30 ]; then
+    err "PostgreSQL did not become ready within 30 seconds."
+    err "On Replit, the postgresql-16 module should auto-start."
+    err "Try: open the Database tab in Replit sidebar, then re-run."
+    exit 1
+  fi
+  sleep 1
+done
 
 # -----------------------------------------------------------------------------
 # 3. Ensure the avex_dev database + avex user exist
 # -----------------------------------------------------------------------------
-ensure_database() {
-  log "📦 Ensuring 'avex_dev' database exists..."
-  # On Replit, the default user is the system user; postgres is often trusted.
-  # Try common connection strings.
-  local psql_opts="-h 127.0.0.1 -p 5432 -U postgres -d postgres -tAc"
+log "📦 Ensuring 'avex_dev' database exists..."
 
-  # Try with no password first (Replit local trust auth)
-  if psql $psql_opts "SELECT 1" >/dev/null 2>&1; then
-    :
-  # Try as current user
-  elif psql -h 127.0.0.1 -p 5432 -U "$(whoami)" -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
-    psql_opts="-h 127.0.0.1 -p 5432 -U $(whoami) -d postgres -tAc"
-  else
-    warn "Cannot connect to PostgreSQL as postgres or $(whoami)."
-    warn "Will try to proceed — backend may fail if DATABASE_URL is wrong."
-    return 0
+# Find a working PostgreSQL connection
+PSQL_BASE=""
+for conn_user in postgres "$(whoami)" avex; do
+  debug "Trying PostgreSQL as user: $conn_user"
+  if psql -h 127.0.0.1 -p 5432 -U "$conn_user" -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
+    PSQL_BASE="-h 127.0.0.1 -p 5432 -U $conn_user -d postgres"
+    debug "Connected as: $conn_user"
+    break
   fi
+done
 
+if [ -z "$PSQL_BASE" ]; then
+  warn "Cannot connect to PostgreSQL to create database."
+  warn "The backend may fail if DATABASE_URL points to a non-existent database."
+  warn "Continuing anyway..."
+else
   # Create avex role (ignore error if exists)
-  psql $psql_opts "CREATE ROLE avex WITH LOGIN PASSWORD 'avex' CREATEDB SUPERUSER;" 2>/dev/null || true
+  psql $PSQL_BASE -tAc "CREATE ROLE avex WITH LOGIN PASSWORD 'avex' CREATEDB SUPERUSER;" 2>/dev/null || true
   # Create avex_dev database (ignore error if exists)
-  psql $psql_opts "CREATE DATABASE avex_dev OWNER avex;" 2>/dev/null || true
+  psql $PSQL_BASE -tAc "CREATE DATABASE avex_dev OWNER avex;" 2>/dev/null || true
   log "✅ Database 'avex_dev' and role 'avex' are ready"
-}
+fi
 
-ensure_database
-
-# Export DATABASE_URL if not already set (Replit module sets it automatically
-# on Replit, but for local dev we set it here).
 export DATABASE_URL="${DATABASE_URL:-postgres://avex:avex@127.0.0.1:5432/avex_dev?sslmode=disable}"
+debug "DATABASE_URL=$DATABASE_URL"
 
 # -----------------------------------------------------------------------------
-# 4. Ensure Redis is running (started as a daemon, not via Docker)
+# 4. Ensure Redis is running
 # -----------------------------------------------------------------------------
-ensure_redis() {
-  log "📦 Checking Redis..."
-  if redis-cli -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1; then
-    log "✅ Redis is already running"
-    return 0
-  fi
-
+log "📦 Checking Redis..."
+if redis-cli -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1; then
+  log "✅ Redis is already running"
+else
   info "Starting Redis daemon..."
-  # Start Redis as a background daemon, logs to file
   mkdir -p /tmp/avex-redis
   redis-server \
     --daemonize yes \
@@ -214,71 +241,77 @@ ensure_redis() {
     --dir /tmp/avex-redis \
     --logfile /tmp/avex-redis/redis.log \
     --save "" \
-    --appendonly no
+    --appendonly no 2>/dev/null
 
-  # Wait for it
   for i in $(seq 1 10); do
     if redis-cli -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1; then
       log "✅ Redis is ready"
-      return 0
+      break
+    fi
+    if [ $i -eq 10 ]; then
+      err "Redis did not start. Check /tmp/avex-redis/redis.log"
+      cat /tmp/avex-redis/redis.log 2>/dev/null | tail -10
+      exit 1
     fi
     sleep 0.5
   done
-  err "Redis did not start. Check /tmp/avex-redis/redis.log"
-  exit 1
-}
-
-ensure_redis
+fi
 export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379/0}"
 
 # -----------------------------------------------------------------------------
 # 5. Kill any stale backend processes
 # -----------------------------------------------------------------------------
 log "🧹 Cleaning up stale processes..."
-pkill -f "cmd/server" 2>/dev/null || true
-pkill -f "cmd/worker" 2>/dev/null || true
+pkill -f "avex-server" 2>/dev/null || true
+pkill -f "avex-worker" 2>/dev/null || true
 sleep 1
 
 # -----------------------------------------------------------------------------
-# 6. Build the backend (fast — Go caches compiled deps)
+# 6. Build the backend
 # -----------------------------------------------------------------------------
 log "🔧 Compiling backend..."
 cd "$SCRIPT_DIR/backend"
-if ! go build -o /tmp/avex-server ./cmd/server; then
+
+debug "Running: go build -o /tmp/avex-server ./cmd/server"
+if ! go build -o /tmp/avex-server ./cmd/server 2>&1; then
   err "Failed to build backend server"
+  err "Build errors above. Check your Go code."
   exit 1
 fi
-if ! go build -o /tmp/avex-worker ./cmd/worker; then
+
+debug "Running: go build -o /tmp/avex-worker ./cmd/worker"
+if ! go build -o /tmp/avex-worker ./cmd/worker 2>&1; then
   err "Failed to build backend worker"
+  err "Build errors above. Check your Go code."
   exit 1
 fi
 log "✅ Backend compiled"
 
 # -----------------------------------------------------------------------------
-# 7. Start the backend API server
+# 7. Start the backend worker (BACKGROUND — it's secondary)
 # -----------------------------------------------------------------------------
-log "🚀 Starting backend API server on port ${APP_PORT:-8080}..."
-if [ "$BACKGROUND" = "true" ]; then
-  nohup /tmp/avex-server > "$SCRIPT_DIR/backend/server.log" 2>&1 &
-  echo $! > "$SCRIPT_DIR/backend/server.pid"
-  disown
-else
-  /tmp/avex-server > "$SCRIPT_DIR/backend/server.log" 2>&1 &
-  echo $! > "$SCRIPT_DIR/backend/server.pid"
+log "⚙️  Starting backend worker..."
+/tmp/avex-worker > "$SCRIPT_DIR/backend/worker.log" 2>&1 &
+WORKER_PID=$!
+echo "$WORKER_PID" > "$SCRIPT_DIR/backend/worker.pid"
+debug "Worker PID: $WORKER_PID"
+
+# Give worker a moment to start
+sleep 1
+if ! kill -0 "$WORKER_PID" 2>/dev/null; then
+  warn "Worker exited immediately. Check $SCRIPT_DIR/backend/worker.log"
+  tail -10 "$SCRIPT_DIR/backend/worker.log" 2>/dev/null
+  # Continue anyway — the server can work without the worker (just no background jobs)
 fi
 
 # -----------------------------------------------------------------------------
-# 8. Start the backend worker (outbox publisher + job processor)
+# 8. Start the backend API server (BACKGROUND initially, for health check)
 # -----------------------------------------------------------------------------
-log "⚙️  Starting backend worker..."
-if [ "$BACKGROUND" = "true" ]; then
-  nohup /tmp/avex-worker > "$SCRIPT_DIR/backend/worker.log" 2>&1 &
-  echo $! > "$SCRIPT_DIR/backend/worker.pid"
-  disown
-else
-  /tmp/avex-worker > "$SCRIPT_DIR/backend/worker.log" 2>&1 &
-  echo $! > "$SCRIPT_DIR/backend/worker.pid"
-fi
+log "🚀 Starting backend API server on port ${APP_PORT:-8080}..."
+/tmp/avex-server > "$SCRIPT_DIR/backend/server.log" 2>&1 &
+SERVER_PID=$!
+echo "$SERVER_PID" > "$SCRIPT_DIR/backend/server.pid"
+debug "Server PID: $SERVER_PID"
 
 cd "$SCRIPT_DIR"
 
@@ -287,14 +320,25 @@ cd "$SCRIPT_DIR"
 # -----------------------------------------------------------------------------
 log "⏳ Waiting for API server to be healthy..."
 for i in $(seq 1 30); do
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    err "Backend server process died during startup!"
+    err "=== Server log (last 30 lines) ==="
+    tail -30 "$SCRIPT_DIR/backend/server.log" 2>/dev/null
+    exit 1
+  fi
   if curl -sf http://127.0.0.1:8080/api/healthz >/dev/null 2>&1; then
     log "✅ Backend API is healthy"
     break
   fi
   if [ $i -eq 30 ]; then
     err "Backend API did not become healthy within 30 seconds."
-    err "Check $SCRIPT_DIR/backend/server.log for details."
-    tail -20 "$SCRIPT_DIR/backend/server.log" 2>/dev/null || true
+    err "=== Server log (last 30 lines) ==="
+    tail -30 "$SCRIPT_DIR/backend/server.log" 2>/dev/null
+    err ""
+    err "Common causes:"
+    err "  1. Database migration failed — check the log above"
+    err "  2. Port 8080 already in use — run: ./run.sh --stop && ./run.sh"
+    err "  3. Missing environment variable — check the log for 'config:' errors"
     exit 1
   fi
   sleep 1
@@ -304,35 +348,72 @@ done
 # 10. Print summary
 # -----------------------------------------------------------------------------
 echo ""
-echo "============================================================"
-echo -e "${GREEN}  AVEX Platform is up and running${NC}"
-echo "============================================================"
-echo ""
-echo "  Backend API:    http://127.0.0.1:8080"
-echo "  Health check:   http://127.0.0.1:8080/api/healthz"
-echo "  API base:       http://127.0.0.1:8080/api/v1"
-echo ""
-echo "  Frontend apps (auto-started by Replit from artifact.toml):"
-echo "    Driver:   /driver/"
-echo "    Customer: /"
-echo "    Admin:    /admin/"
-echo "    Merchant: /merchant/"
-echo "    Support:  /support/"
-echo ""
-echo "  Logs:"
-echo "    Backend server: $SCRIPT_DIR/backend/server.log"
-echo "    Backend worker: $SCRIPT_DIR/backend/worker.log"
-echo "    Redis:          /tmp/avex-redis/redis.log"
-echo ""
-echo "  Commands:"
-echo "    ./run.sh --status   Check status of all components"
-echo "    ./run.sh --stop     Stop all AVEX processes"
-echo "    ./seed-driver.sh    Create a test driver account"
-echo "============================================================"
+echo "============================================================" >&2
+echo -e "${GREEN}  AVEX Platform is up and running${NC}" >&2
+echo "============================================================" >&2
+echo "" >&2
+echo "  Backend API:    http://127.0.0.1:8080" >&2
+echo "  Health check:   http://127.0.0.1:8080/api/healthz" >&2
+echo "  API base:       http://127.0.0.1:8080/api/v1" >&2
+echo "" >&2
+echo "  Frontend apps (auto-started by Replit from artifact.toml):" >&2
+echo "    Driver:   /driver/     (tab at bottom of Replit)" >&2
+echo "    Customer: /            (tab at bottom of Replit)" >&2
+echo "    Admin:    /admin/      (tab at bottom of Replit)" >&2
+echo "    Merchant: /merchant/   (tab at bottom of Replit)" >&2
+echo "    Support:  /support/    (tab at bottom of Replit)" >&2
+echo "" >&2
+echo "  Logs:" >&2
+echo "    Backend server: $SCRIPT_DIR/backend/server.log" >&2
+echo "    Backend worker: $SCRIPT_DIR/backend/worker.log" >&2
+echo "    Redis:          /tmp/avex-redis/redis.log" >&2
+echo "" >&2
+echo "  Commands:" >&2
+echo "    ./run.sh --status   Check status" >&2
+echo "    ./run.sh --stop     Stop everything" >&2
+echo "    ./seed-driver.sh    Create a test driver account" >&2
+echo "============================================================" >&2
+echo "" >&2
 
-# In foreground mode, keep the script alive so the Replit workflow doesn't end
-if [ "$BACKGROUND" = "false" ]; then
-  info "Press Ctrl+C to stop. Backend is running in background."
-  # Tail the server log so the workflow shows output
-  tail -f "$SCRIPT_DIR/backend/server.log" 2>/dev/null || wait
+# =============================================================================
+# 11. CRITICAL: Keep the script alive so Replit doesn't kill everything
+# =============================================================================
+# Replit's workflow monitor watches this script's process. If the script exits,
+# Replit kills the entire process group — including our backend server.
+# We must NOT exit. We block here, streaming the server log to stdout, until
+# the server process dies or we receive SIGTERM/SIGINT.
+
+if [ "$BACKGROUND" = "true" ]; then
+  # Background mode: disown the processes and exit
+  info "Backend running in background. Logs in backend/server.log"
+  disown "$SERVER_PID" 2>/dev/null || true
+  disown "$WORKER_PID" 2>/dev/null || true
+  exit 0
 fi
+
+# Foreground mode (DEFAULT for Replit):
+# Stream the server log to stdout AND block on the server process.
+# This keeps the Replit workflow alive and shows real-time logs in the console.
+info "Backend is running in foreground. Press Ctrl+C or Stop button to shut down."
+info "Streaming server logs (live)..."
+
+# Tail the log in background, capture its PID
+tail -f "$SCRIPT_DIR/backend/server.log" 2>/dev/null &
+TAIL_PID=$!
+
+# Block until the server process exits
+# When the server dies (or is killed), we'll exit and cleanup() will fire.
+wait "$SERVER_PID" 2>/dev/null
+SERVER_EXIT_CODE=$?
+
+# Clean up the tail process
+kill "$TAIL_PID" 2>/dev/null || true
+wait "$TAIL_PID" 2>/dev/null || true
+
+if [ $SERVER_EXIT_CODE -ne 0 ]; then
+  err "Backend server exited with code $SERVER_EXIT_CODE"
+  err "=== Server log (last 50 lines) ==="
+  tail -50 "$SCRIPT_DIR/backend/server.log" 2>/dev/null
+fi
+
+exit $SERVER_EXIT_CODE
