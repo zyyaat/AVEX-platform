@@ -21,7 +21,8 @@ export function DriverLayout({ children }: { children: React.ReactNode }) {
   const [bootChecked, setBootChecked] = useState(false)
 
   useEffect(() => {
-    initialize().then(() => setBootChecked(true))
+    initialize()
+    setBootChecked(true)
   }, [initialize])
 
   useEffect(() => {
