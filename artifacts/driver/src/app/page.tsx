@@ -17,18 +17,30 @@ export default function DriverPage() {
   const [authError, setAuthError] = useState('')
   const [toggling, setToggling] = useState(false)
   const [driverLoaded, setDriverLoaded] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
 
-  // Restore session on mount (synchronous)
+  // Wait for Zustand persist to hydrate from localStorage
+  // This prevents the login screen from flashing before the token is restored
   useEffect(() => {
     initialize()
+    // Give persist middleware time to hydrate (it's async)
+    const timer = setTimeout(() => setHydrated(true), 100)
+    return () => clearTimeout(timer)
   }, [])
 
   // Fetch driver data when authenticated
   useEffect(() => {
-    if (isAuthenticated && userID && !driverLoaded) {
+    if (isAuthenticated && userID && !driverLoaded && hydrated) {
       fetchDriver().finally(() => setDriverLoaded(true))
     }
-  }, [isAuthenticated, userID, driverLoaded, fetchDriver])
+  }, [isAuthenticated, userID, driverLoaded, fetchDriver, hydrated])
+
+  // Reset driverLoaded when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setDriverLoaded(false)
+    }
+  }, [isAuthenticated])
 
   // ===== Login handler =====
   const handleLogin = async (e: React.FormEvent) => {
@@ -71,6 +83,15 @@ export default function DriverPage() {
     setPhone('')
     setPassword('')
     toast.success('تم تسجيل الخروج')
+  }
+
+  // ===== LOADING SCREEN (only during hydration) =====
+  if (!hydrated) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    )
   }
 
   // ===== LOGIN SCREEN =====
