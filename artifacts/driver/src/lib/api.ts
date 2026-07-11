@@ -143,8 +143,27 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: 'Request failed' }))
-    throw new Error(error.error || `HTTP ${res.status}`)
+    // Backend returns { error: { message: "...", code: "..." } } (nested object).
+    // Some endpoints may return { error: "string" }.
+    // If JSON parse fails (e.g. HTML error page from proxy), show HTTP status.
+    let errorMsg = ''
+    try {
+      const errBody = await res.json()
+      if (typeof errBody.error === 'string') {
+        errorMsg = errBody.error
+      } else if (errBody.error && typeof errBody.error.message === 'string') {
+        errorMsg = errBody.error.message
+      } else if (typeof errBody.message === 'string') {
+        errorMsg = errBody.message
+      } else if (typeof errBody.error === 'object') {
+        errorMsg = JSON.stringify(errBody.error)
+      } else {
+        errorMsg = `HTTP ${res.status}`
+      }
+    } catch {
+      errorMsg = `HTTP ${res.status}`
+    }
+    throw new Error(errorMsg)
   }
 
   // Some endpoints return no content
