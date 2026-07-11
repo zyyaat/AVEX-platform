@@ -1,5 +1,8 @@
 modules = ["nodejs-20", "web", "bash", "postgresql-16", "go-1.25"]
 
+# =============================================================================
+# Deployment — Replit autoscale target
+# =============================================================================
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
@@ -8,8 +11,23 @@ deploymentTarget = "autoscale"
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
+# =============================================================================
+# Workflows — what the green "Run" button does
+# =============================================================================
+# The "Run" button starts the backend (server + worker). Each frontend app
+# is auto-discovered from its artifact.toml file and runs as a separate
+# Replit artifact (visible in the bottom tabs of the Replit workspace).
+# =============================================================================
 [workflows]
-runButton = "Project"
+runButton = "Backend"
+
+[[workflows.workflow]]
+name = "Backend"
+mode = "sequential"
+
+[[workflows.workflow.steps]]
+name = "Start backend (server + worker)"
+command = "bash run.sh"
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -19,15 +37,29 @@ expertMode = true
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
 
+# =============================================================================
+# User environment — NON-SECRET shared variables
+# =============================================================================
+# IMPORTANT: Never put secrets (JWT_SECRET, MAPBOX_ACCESS_TOKEN) here.
+# Use Replit Secrets (lock icon in the left sidebar) instead. Secrets set
+# via the Replit UI override these values at runtime.
+# =============================================================================
 [userenv]
 
 [userenv.shared]
 APP_ENV = "development"
+APP_NAME = "avex-backend"
+APP_PORT = "8080"
+APP_LOG_LEVEL = "info"
+APP_LOG_FORMAT = "json"
 JWT_ISSUER = "avex"
 REDIS_URL = "redis://127.0.0.1:6379/0"
-JWT_SECRET = "44eaa6900b18640ecc365a3b5175019ad5f29e631ec4003b8ca9f403d06667002277f6a449ccd2713e11916bbf17e825"
-MAPBOX_ACCESS_TOKEN = "MAPBOX_PUBLIC_TOKEN_PLACEHOLDER"
+# DATABASE_URL is auto-populated by the postgresql-16 module on Replit.
+# Locally, set it in your shell or .env file.
 
+# =============================================================================
+# Nix packages — additional system-level dependencies
+# =============================================================================
 [nix]
-packages = ["run"]
+packages = ["redis"]
 channel = "stable-25_05"

@@ -11,6 +11,21 @@ out-tsc
 # dependencies
 node_modules
 
+# Environment variables — NEVER commit .env files with real secrets.
+# On Replit, set secrets via the lock icon in the sidebar instead.
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+backend/.env
+backend/server.log
+backend/worker.log
+backend/server.pid
+backend/worker.pid
+backend/bin/
+backend/release/
+
 # IDEs and editors
 /.idea
 .project
