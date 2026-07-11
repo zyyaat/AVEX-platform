@@ -89,7 +89,7 @@ export function AuthDialog({ open, onOpenChange, initialMode = 'login' }: AuthDi
           <button type="button" onClick={() => setMode('register')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'register' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}>حساب جديد</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3" noValidate>
           <AnimatePresence mode="wait">
             {mode === 'register' && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-1.5">
@@ -114,6 +114,8 @@ export function AuthDialog({ open, onOpenChange, initialMode = 'login' }: AuthDi
               }}
               placeholder="01012345678"
               required
+              autoComplete="off"
+              name="phone"
               className={`rounded-lg ${form.phone && !/^01[0125][0-9]{8}$/.test(form.phone) ? 'border-red-500' : form.phone.length === 11 && /^01[0125][0-9]{8}$/.test(form.phone) ? 'border-black' : ''}`}
               dir="ltr"
               inputMode="tel"
@@ -127,7 +129,7 @@ export function AuthDialog({ open, onOpenChange, initialMode = 'login' }: AuthDi
             {mode === 'register' && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-1.5">
                 <Label className="text-sm font-medium flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> البريد الإلكتروني (اختياري)</Label>
-                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="ahmed@example.com" className="rounded-lg" dir="ltr" />
+                <Input type="text" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="ahmed@example.com" className="rounded-lg" dir="ltr" autoComplete="off" name="email" inputMode="email" />
               </motion.div>
             )}
           </AnimatePresence>
