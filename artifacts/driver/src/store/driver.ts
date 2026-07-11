@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   driverAPI,
+  financialAPI,
   type Driver,
   type DispatchOffer,
   type ActiveOrder,
@@ -11,6 +12,9 @@ interface DriverState {
   driver: Driver | null
   offers: DispatchOffer[]
   activeOrder: ActiveOrder | null
+  orderHistory: ActiveOrder[]
+  wallet: any | null
+  transactions: any[]
   isLoading: boolean
   error: string | null
 
@@ -20,6 +24,8 @@ interface DriverState {
   updateLocation: (lat: number, lng: number, bearing?: number, speed?: number, accuracy?: number) => Promise<void>
   refreshOffers: () => Promise<void>
   refreshActiveOrder: () => Promise<void>
+  refreshHistory: () => Promise<void>
+  refreshWallet: () => Promise<void>
   acceptOffer: (offerId: string) => Promise<void>
   rejectOffer: (offerId: string, reason?: string) => Promise<void>
   markPickedUp: (orderId: string) => Promise<void>
@@ -31,21 +37,22 @@ export const useDriver = create<DriverState>((set, get) => ({
   driver: null,
   offers: [],
   activeOrder: null,
+  orderHistory: [],
+  wallet: null,
+  transactions: [],
   isLoading: false,
   error: null,
 
   fetchDriver: async () => {
     const auth = useAuth.getState()
     if (!auth.userID) {
-      console.warn('fetchDriver: no userID — login may have failed')
-      set({ error: 'لم يتم العثور على معرف المندوب — يرجى تسجيل الدخول مرة أخرى', driver: null })
+      set({ error: 'لم يتم العثور على معرف المندوب', driver: null })
       return
     }
     try {
       const driver = await driverAPI.getDriverByUserID(auth.userID)
       set({ driver, error: null })
     } catch (err: any) {
-      console.error('fetchDriver error:', err.message, 'userID:', auth.userID)
       set({ error: err.message, driver: null })
     }
   },
@@ -53,25 +60,15 @@ export const useDriver = create<DriverState>((set, get) => ({
   setOnline: async () => {
     const { driver } = get()
     if (!driver) throw new Error('بيانات المندوب غير متاحة')
-    try {
-      const updated = await driverAPI.goOnline(driver.id)
-      set({ driver: updated, error: null })
-    } catch (err: any) {
-      set({ error: err.message })
-      throw err
-    }
+    const updated = await driverAPI.goOnline(driver.id)
+    set({ driver: updated, error: null })
   },
 
   setOffline: async () => {
     const { driver } = get()
     if (!driver) throw new Error('بيانات المندوب غير متاحة')
-    try {
-      const updated = await driverAPI.goOffline(driver.id)
-      set({ driver: updated, error: null })
-    } catch (err: any) {
-      set({ error: err.message })
-      throw err
-    }
+    const updated = await driverAPI.goOffline(driver.id)
+    set({ driver: updated, error: null })
   },
 
   updateLocation: async (lat, lng, bearing = 0, speed = 0, accuracy = 0) => {
@@ -82,9 +79,8 @@ export const useDriver = create<DriverState>((set, get) => ({
         lat, lng, bearing, speed, accuracy,
         captured_at: new Date().toISOString(),
       })
-    } catch (err: any) {
+    } catch {
       // Silent fail — location updates are best-effort
-      console.error('Location update failed:', err.message)
     }
   },
 
@@ -93,11 +89,10 @@ export const useDriver = create<DriverState>((set, get) => ({
     if (!driver) return
     try {
       const result = await driverAPI.listOffersByDriver(driver.id, 10, 0)
-      // Filter only pending offers
       const pending = (result.items || []).filter(o => o.status === 'pending')
       set({ offers: pending, error: null })
-    } catch (err: any) {
-      set({ error: err.message })
+    } catch {
+      // Silent fail
     }
   },
 
@@ -110,8 +105,32 @@ export const useDriver = create<DriverState>((set, get) => ({
     try {
       const order = await driverAPI.getOrder(driver.current_order_id)
       set({ activeOrder: order, error: null })
-    } catch (err: any) {
-      set({ error: err.message })
+    } catch {
+      set({ activeOrder: null })
+    }
+  },
+
+  refreshHistory: async () => {
+    try {
+      const result = await driverAPI.listMyDriverOrders(50, 0)
+      set({ orderHistory: result.items || [], error: null })
+    } catch {
+      set({ orderHistory: [] })
+    }
+  },
+
+  refreshWallet: async () => {
+    const { driver } = get()
+    if (!driver) return
+    try {
+      const wallet = await financialAPI.getWalletByOwner('driver', driver.id)
+      set({ wallet, error: null })
+      if (wallet?.id) {
+        const txResult = await financialAPI.listTransactions(wallet.id, 50, 0)
+        set({ transactions: txResult.items || [] })
+      }
+    } catch {
+      set({ wallet: null, transactions: [] })
     }
   },
 
@@ -120,7 +139,6 @@ export const useDriver = create<DriverState>((set, get) => ({
     if (!driver) return
     try {
       await driverAPI.acceptOffer(offerId, driver.id)
-      // Refresh driver state + active order
       await get().fetchDriver()
       await get().refreshActiveOrder()
       set((state) => ({ offers: state.offers.filter(o => o.id !== offerId) }))
@@ -143,10 +161,8 @@ export const useDriver = create<DriverState>((set, get) => ({
   },
 
   markPickedUp: async (orderId) => {
-    const { driver } = get()
-    if (!driver) return
     try {
-      await driverAPI.markPickedUp(orderId, driver.id)
+      await driverAPI.markPickedUp(orderId)
       await get().refreshActiveOrder()
     } catch (err: any) {
       set({ error: err.message })
@@ -155,10 +171,8 @@ export const useDriver = create<DriverState>((set, get) => ({
   },
 
   markDelivered: async (orderId) => {
-    const { driver } = get()
-    if (!driver) return
     try {
-      await driverAPI.markDelivered(orderId, driver.id)
+      await driverAPI.markDelivered(orderId)
       await get().fetchDriver()
       set({ activeOrder: null })
     } catch (err: any) {
@@ -168,6 +182,6 @@ export const useDriver = create<DriverState>((set, get) => ({
   },
 
   clear: () => {
-    set({ driver: null, offers: [], activeOrder: null, error: null })
+    set({ driver: null, offers: [], activeOrder: null, orderHistory: [], wallet: null, transactions: [], error: null })
   },
 }))

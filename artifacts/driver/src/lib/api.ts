@@ -244,14 +244,17 @@ export const driverAPI = {
   // Orders
   getOrder: (orderID: string) =>
     apiFetch<ActiveOrder>(`/orders/${orderID}`),
+  // NEW: uses JWT actor — no driver_id needed
+  listMyDriverOrders: (limit = 50, offset = 0) =>
+    apiFetch<{ items: ActiveOrder[]; total: number }>(`/orders/driver/me?limit=${limit}&offset=${offset}`),
   listDriverOrders: (driverID: string, limit = 50, offset = 0) =>
     apiFetch<{ items: ActiveOrder[]; total: number }>(`/orders/driver/${driverID}?limit=${limit}&offset=${offset}`),
   
-  // Order lifecycle (driver actions)
-  markPickedUp: (orderID: string, driverID: string, pickupPhotoURL?: string) =>
-    apiFetch<ActiveOrder>(`/orders/${orderID}/pickup`, { method: 'POST', body: JSON.stringify({ driver_id: driverID, pickup_photo_url: pickupPhotoURL || '' }) }),
-  markDelivered: (orderID: string, driverID: string, deliveryPhotoURL?: string) =>
-    apiFetch<ActiveOrder>(`/orders/${orderID}/deliver`, { method: 'POST', body: JSON.stringify({ driver_id: driverID, delivery_photo_url: deliveryPhotoURL || '' }) }),
+  // Order lifecycle (driver actions) — driver_id comes from JWT now
+  markPickedUp: (orderID: string, pickupPhotoURL?: string) =>
+    apiFetch<ActiveOrder>(`/orders/${orderID}/pickup`, { method: 'POST', body: JSON.stringify({ pickup_photo_url: pickupPhotoURL || '' }) }),
+  markDelivered: (orderID: string, deliveryPhotoURL?: string) =>
+    apiFetch<ActiveOrder>(`/orders/${orderID}/deliver`, { method: 'POST', body: JSON.stringify({ delivery_photo_url: deliveryPhotoURL || '' }) }),
 
   // Admin: register new driver
   registerDriver: (data: { user_id: string; vehicle_type: string; license_plate: string; zone_ids: string[] }) =>
