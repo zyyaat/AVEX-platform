@@ -91,6 +91,12 @@ export default function DriverHome() {
   // If not authenticated, redirect to /login.
   // No bootChecked state — just redirect immediately.
   useEffect(() => {
+    // Call initialize() to restore the token from localStorage.
+    // This sets isInitialized=true so the loading spinner can stop.
+    useAuth.getState().initialize()
+  }, [])
+
+  useEffect(() => {
     if (isInitialized && !isAuthenticated) {
       router.replace('/login')
     }
