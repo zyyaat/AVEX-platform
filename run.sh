@@ -174,25 +174,77 @@ debug "JWT_SECRET length: ${#JWT_SECRET}"
 debug "MAPBOX_ACCESS_TOKEN starts with: ${MAPBOX_ACCESS_TOKEN:0:3}..."
 
 # -----------------------------------------------------------------------------
-# 2. Ensure PostgreSQL is running
+# 2. Ensure PostgreSQL is running (start it manually if needed)
 # -----------------------------------------------------------------------------
 log "📦 Checking PostgreSQL..."
-for i in $(seq 1 30); do
-  if pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
-    log "✅ PostgreSQL is ready"
-    break
+
+# Data directory for our manually-init'd PostgreSQL cluster.
+# On Replit, the postgresql-16 module doesn't always auto-start, so we
+# manage our own cluster in $HOME/.local/share/postgresql-16/data.
+PG_DATA_DIR="${PG_DATA_DIR:-$HOME/.local/share/postgresql-16/data}"
+PG_LOG_FILE="${PG_LOG_FILE:-/tmp/postgres.log}"
+PG_RUN_DIR="/run/postgresql"
+
+# Helper: check if PostgreSQL is responding
+pg_is_running() {
+  pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1
+}
+
+# Helper: start PostgreSQL (init the cluster first if needed)
+start_postgres() {
+  # Ensure /run/postgresql exists (PostgreSQL needs it for the socket lock file)
+  if [ ! -d "$PG_RUN_DIR" ]; then
+    debug "Creating $PG_RUN_DIR for PostgreSQL socket"
+    mkdir -p "$PG_RUN_DIR"
+    chmod 775 "$PG_RUN_DIR"
   fi
-  if [ $i -eq 1 ]; then
-    info "PostgreSQL not yet responding, waiting for Replit module..."
+
+  # Init the cluster if the data directory doesn't exist yet
+  if [ ! -f "$PG_DATA_DIR/PG_VERSION" ]; then
+    log "📦 Initializing PostgreSQL data directory ($PG_DATA_DIR)..."
+    mkdir -p "$PG_DATA_DIR"
+    if ! initdb -D "$PG_DATA_DIR" --auth=trust >/tmp/initdb.log 2>&1; then
+      err "initdb failed. Log:"
+      tail -20 /tmp/initdb.log >&2
+      exit 1
+    fi
+    log "✅ PostgreSQL cluster initialized"
   fi
-  if [ $i -eq 30 ]; then
-    err "PostgreSQL did not become ready within 30 seconds."
-    err "On Replit, the postgresql-16 module should auto-start."
-    err "Try: open the Database tab in Replit sidebar, then re-run."
+
+  # Start the server (if not already running)
+  log "🔧 Starting PostgreSQL server..."
+  if ! pg_ctl -D "$PG_DATA_DIR" -l "$PG_LOG_FILE" start >/dev/null 2>&1; then
+    # Maybe it's already running — check
+    if pg_is_running; then
+      log "✅ PostgreSQL was already running"
+      return 0
+    fi
+    err "Failed to start PostgreSQL. Log:"
+    tail -20 "$PG_LOG_FILE" >&2
     exit 1
   fi
-  sleep 1
-done
+}
+
+# Try to detect if PostgreSQL is already running (from a previous run.sh)
+if pg_is_running; then
+  log "✅ PostgreSQL is already running"
+else
+  start_postgres
+  # Wait for it to be ready (up to 30 seconds)
+  for i in $(seq 1 30); do
+    if pg_is_running; then
+      log "✅ PostgreSQL is ready"
+      break
+    fi
+    if [ $i -eq 30 ]; then
+      err "PostgreSQL did not become ready within 30 seconds."
+      err "Check $PG_LOG_FILE for details:"
+      tail -20 "$PG_LOG_FILE" >&2
+      exit 1
+    fi
+    sleep 1
+  done
+fi
 
 # -----------------------------------------------------------------------------
 # 3. Ensure the avex_dev database + avex user exist
