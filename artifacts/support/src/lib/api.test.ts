@@ -79,6 +79,6 @@ describe('apiFetch behaviour', () => {
   it('tickets list falls back gracefully on network failure (no crash)', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network down'))
     const result = await agentAPI.getTickets()
-    expect(result).toEqual({ tickets: [] })
+    expect(result).toEqual({ tickets: [], agentId: '' })
   })
 })

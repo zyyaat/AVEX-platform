@@ -45,7 +45,7 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 export const agentAuthAPI = {
   // Support agents use the standard user login
   login: (data: { phone: string; password: string }) =>
-    apiFetch<{ token: string; user: any; must_change_password: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+    apiFetch<{ token: string; user: any; agent?: any; must_change_password: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
   me: () => apiFetch<any>('/users/me').catch(() => null),
 }
 
@@ -55,10 +55,10 @@ export const agentAPI = {
     openTickets: 0, assignedTickets: 0, resolvedToday: 0, avgResponseTime: 0,
   })),
   getTickets: (filter: string = '') =>
-    apiFetch<{ tickets: any[] }>(`/support/tickets${filter ? `?status=${filter}` : ''}`).catch(() => ({ tickets: [] })),
+    apiFetch<{ tickets: any[]; agentId?: string }>(`/support/tickets${filter ? `?status=${filter}` : ''}`).catch(() => ({ tickets: [], agentId: '' })),
   getTicket: (id: string) =>
     apiFetch<{ ticket: any; messages: any[] }>(`/support/tickets/${id}`).catch(() => ({ ticket: null, messages: [] })),
-  assignTicket: (id: string, agentId: string) =>
+  assignTicket: (id: string, agentId: string = '') =>
     apiFetch<{ success: boolean }>(`/support/tickets/${id}/assign`, { method: 'POST', body: JSON.stringify({ agent_id: agentId }) }),
   setPriority: (id: string, priority: string) =>
     apiFetch(`/support/tickets/${id}/priority`, { method: 'POST', body: JSON.stringify({ priority }) }),

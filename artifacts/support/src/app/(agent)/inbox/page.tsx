@@ -20,7 +20,7 @@ export default function InboxPage() {
 
   const load = () => {
     setLoading(true)
-    agentAPI.getTickets(filter).then((r) => { setTickets(r.tickets || []); setAgentId(r.agentId) })
+    agentAPI.getTickets(filter).then((r) => { setTickets(r.tickets || []); setAgentId(r.agentId || '') })
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [filter])

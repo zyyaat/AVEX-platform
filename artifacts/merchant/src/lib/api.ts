@@ -145,7 +145,7 @@ export interface MerchantStats {
 export const merchantAuthAPI = {
   // Merchant login uses the same user login endpoint (merchant is a user with merchant role)
   login: (data: { phone: string; password: string }) =>
-    apiFetch<{ token: string; user: any; must_change_password: boolean }>('/auth/login', {
+    apiFetch<{ token: string; user: any; merchant?: any; must_change_password: boolean }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

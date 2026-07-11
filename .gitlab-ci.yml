@@ -1,18 +1,22 @@
 # =============================================================================
-# AVEX Backend — GitLab CI/CD Pipeline
+# AVEX Platform — GitLab CI/CD Pipeline
 # =============================================================================
-# Runs on merge requests and pushes to main when backend/** changes.
+# Runs on merge requests and pushes to main.
 #
 # Stages:
-#   1. lint  — go vet + gofmt formatting check
-#   2. test  — all unit tests with race detector (707+ tests)
-#   3. build — build server + worker binaries
+#   1. lint      — go vet + gofmt formatting check
+#   2. test      — backend unit tests + frontend Vitest tests
+#   3. build     — build server + worker binaries
+#   4. integration — backend HTTP smoke tests (health + readiness)
+#   5. release   — tag and publish artifacts (on main only)
 # =============================================================================
 
 stages:
   - lint
   - test
   - build
+  - integration
+  - release
 
 workflow:
   rules:
@@ -106,6 +110,80 @@ frontend-test:
     - corepack enable
     - pnpm config set store-dir .pnpm-store
   script:
-    # TODO: switch to --frozen-lockfile once pnpm-lock.yaml includes vitest/happy-dom
-    - pnpm install --no-frozen-lockfile
+    - pnpm install --frozen-lockfile
     - pnpm -r --if-present test
+
+# ===== Backend integration tests (HTTP smoke + lifecycle) =====
+# Spins up Postgres + Redis services, runs migrations, and verifies the
+# HTTP layer (/api/healthz, /api/health) plus the order-lifecycle flow.
+integration-test:
+  stage: integration
+  <<: *backend-rules
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+      variables:
+        POSTGRES_USER: avex
+        POSTGRES_PASSWORD: avex
+        POSTGRES_DB: avex_test
+    - name: redis:7-alpine
+      alias: redis
+  variables:
+    DATABASE_URL: "postgres://avex:avex@postgres:5432/avex_test?sslmode=disable"
+    REDIS_URL: "redis://redis:6379/0"
+    JWT_SECRET: "ci-integration-test-secret-32-characters"
+    JWT_ISSUER: "avex-ci"
+    GOPATH: "$CI_PROJECT_DIR/.go-cache"
+  script:
+    - cd backend
+    - go mod download
+    # Wait for Postgres to be ready
+    - |
+      for i in $(seq 1 30); do
+        if pg_isready -h postgres -U avex -d avex_test > /dev/null 2>&1; then
+          echo "Postgres is up"
+          break
+        fi
+        echo "Waiting for Postgres... ($i/30)"
+        sleep 1
+      done
+    # Run integration tests (tag-gated)
+    - go test -tags=integration -timeout 180s -count=1 -v ./internal/integration/...
+
+# ===== Release stage: build + publish on main only =====
+# Builds production binaries for linux/amd64 and attaches them as
+# GitLab release artifacts. Only runs on main branch pushes (not MRs).
+release:binaries:
+  stage: release
+  <<: *backend-rules
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+      when: on_success
+  variables:
+    CGO_ENABLED: "0"
+    GOOS: "linux"
+    GOARCH: "amd64"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git tar gzip
+  script:
+    - cd backend
+    - go mod download
+    - VERSION="v$(date +%Y%m%d)-${CI_COMMIT_SHORT_SHA}"
+    - mkdir -p release
+    - go build -ldflags "-s -w -X main.version=${VERSION}" -o release/avex-server ./cmd/server
+    - go build -ldflags "-s -w -X main.version=${VERSION}" -o release/avex-worker ./cmd/worker
+    - cd release
+    - tar -czf "avex-${VERSION}.tar.gz" avex-server avex-worker
+    - ls -lh
+    - echo "Released version ${VERSION}"
+  artifacts:
+    name: "avex-binaries-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - backend/release/
+    expire_in: 30 days
+  only:
+    refs:
+      - main
