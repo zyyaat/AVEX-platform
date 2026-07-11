@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 export default function AdminRestaurantsPage() {
   const [rests, setRests] = useState<any[]>([])
+  const [zones, setZones] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -20,7 +21,13 @@ export default function AdminRestaurantsPage() {
 
   const load = () => {
     setLoading(true)
-    adminAPI.getRestaurants().then((r) => setRests(r || [])).finally(() => setLoading(false))
+    Promise.all([
+      adminAPI.getRestaurants(),
+      adminAPI.getZones().catch(() => []),
+    ]).then(([r, z]) => {
+      setRests(r || [])
+      setZones(z || [])
+    }).finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 
@@ -195,8 +202,13 @@ export default function AdminRestaurantsPage() {
                 className="w-full h-11 px-3 rounded-lg border border-gray-200 focus:outline-none focus:border-black" />
               <input placeholder="أنواع المطبخ (مثال: برغر, بيتزا)" value={form.cuisines} onChange={(e) => setForm({...form, cuisines: e.target.value})}
                 className="w-full h-11 px-3 rounded-lg border border-gray-200 focus:outline-none focus:border-black" />
-              <input placeholder="المنطقة (zone-cairo)" value={form.zoneId} onChange={(e) => setForm({...form, zoneId: e.target.value})}
-                className="w-full h-11 px-3 rounded-lg border border-gray-200 focus:outline-none focus:border-black" />
+              <select required value={form.zoneId} onChange={(e) => setForm({...form, zoneId: e.target.value})}
+                className="w-full h-11 px-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-black">
+                <option value="">اختر المنطقة</option>
+                {zones.map((z: any) => (
+                  <option key={z.id} value={z.id}>{z.nameAr || z.name}</option>
+                ))}
+              </select>
               <div className="grid grid-cols-2 gap-2">
                 <input type="number" step="0.01" placeholder="رسوم التوصيل" value={form.deliveryFee} onChange={(e) => setForm({...form, deliveryFee: +e.target.value})}
                   className="w-full h-11 px-3 rounded-lg border border-gray-200 focus:outline-none focus:border-black" />
