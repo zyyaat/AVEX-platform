@@ -443,8 +443,10 @@ func (h *Handler) ListOffersByOrder(w http.ResponseWriter, r *http.Request) {
 func RegisterRoutes(mux *http.ServeMux, svc port.ServicePort, logger *slog.Logger, jwtIssuer idp.JWTIssuer) {
         h := NewHandler(svc, logger)
         authMW := idhttp.Auth(jwtIssuer, logger)
+        // FIXED: admin endpoints now require admin role (was any authenticated)
+        adminAuth := idhttp.RequireRole(jwtIssuer, logger, "admin")
 
-        // Authenticated (Bearer)
+        // Authenticated (Bearer) — any role can read driver info
         mux.Handle("GET /api/v1/drivers/{id}", authMW(http.HandlerFunc(h.GetDriver)))
         mux.Handle("GET /api/v1/drivers", authMW(http.HandlerFunc(h.GetDriverByUserID)))
         mux.Handle("POST /api/v1/drivers/{id}/online", authMW(http.HandlerFunc(h.GoOnline)))
@@ -458,14 +460,14 @@ func RegisterRoutes(mux *http.ServeMux, svc port.ServicePort, logger *slog.Logge
         mux.Handle("POST /api/v1/dispatch/offers/{id}/reject", authMW(http.HandlerFunc(h.RejectOffer)))
         mux.Handle("GET /api/v1/dispatch/offers", authMW(http.HandlerFunc(h.listOffers))) // dispatches by query param
 
-        // Admin (Bearer)
-        mux.Handle("POST /api/v1/admin/drivers", authMW(http.HandlerFunc(h.RegisterDriver)))
-        mux.Handle("GET /api/v1/admin/drivers", authMW(http.HandlerFunc(h.ListDrivers)))
-        mux.Handle("POST /api/v1/admin/drivers/{id}/suspend", authMW(http.HandlerFunc(h.SuspendDriver)))
-        mux.Handle("POST /api/v1/admin/drivers/{id}/unsuspend", authMW(http.HandlerFunc(h.UnsuspendDriver)))
-        mux.Handle("POST /api/v1/admin/dispatch/offers", authMW(http.HandlerFunc(h.CreateOffer)))
-        mux.Handle("POST /api/v1/admin/dispatch/offers/{id}/expire", authMW(http.HandlerFunc(h.ExpireOffer)))
-        mux.Handle("POST /api/v1/admin/dispatch/offers/{id}/cancel", authMW(http.HandlerFunc(h.CancelOffer)))
+        // Admin (Bearer + admin role) — FIXED: was authMW (any role)
+        mux.Handle("POST /api/v1/admin/drivers", adminAuth(http.HandlerFunc(h.RegisterDriver)))
+        mux.Handle("GET /api/v1/admin/drivers", adminAuth(http.HandlerFunc(h.ListDrivers)))
+        mux.Handle("POST /api/v1/admin/drivers/{id}/suspend", adminAuth(http.HandlerFunc(h.SuspendDriver)))
+        mux.Handle("POST /api/v1/admin/drivers/{id}/unsuspend", adminAuth(http.HandlerFunc(h.UnsuspendDriver)))
+        mux.Handle("POST /api/v1/admin/dispatch/offers", adminAuth(http.HandlerFunc(h.CreateOffer)))
+        mux.Handle("POST /api/v1/admin/dispatch/offers/{id}/expire", adminAuth(http.HandlerFunc(h.ExpireOffer)))
+        mux.Handle("POST /api/v1/admin/dispatch/offers/{id}/cancel", adminAuth(http.HandlerFunc(h.CancelOffer)))
 }
 
 // listOffers dispatches to ListOffersByDriver or ListOffersByOrder based on query params.

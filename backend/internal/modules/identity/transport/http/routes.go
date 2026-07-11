@@ -45,10 +45,15 @@ func RegisterRoutes(mux *http.ServeMux, svc port.ServicePort, cfg RoutesConfig) 
 
         mux.Handle("POST /api/v1/auth/logout", authMW(http.HandlerFunc(h.Logout)))
         mux.Handle("POST /api/v1/auth/change-password", authMW(http.HandlerFunc(h.ChangePassword)))
-        mux.Handle("GET /api/v1/users/me", authMW(http.HandlerFunc(h.GetMe)))
+
+        // ----- User routes (user role) -----
+        // FIXED: was authMW (any role), now RequireRole("user")
+        userAuth := RequireRole(cfg.JWTIssuer, cfg.Logger, "user")
+        mux.Handle("GET /api/v1/users/me", userAuth(http.HandlerFunc(h.GetMe)))
 
         // ----- Driver routes (driver role) -----
-        driverAuth := Auth(cfg.JWTIssuer, cfg.Logger)
+        // FIXED: was Auth (any role), now RequireRole("driver")
+        driverAuth := RequireRole(cfg.JWTIssuer, cfg.Logger, "driver")
         mux.Handle("GET /api/v1/drivers/me", driverAuth(http.HandlerFunc(h.GetDriverMe)))
         mux.Handle("PATCH /api/v1/drivers/status", driverAuth(http.HandlerFunc(h.UpdateDriverStatus)))
 
