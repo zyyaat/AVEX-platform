@@ -93,28 +93,39 @@ export default function DriverPage() {
       document.head.appendChild(link)
     }
 
-    // Load Leaflet JS (tiny — 40KB vs Mapbox 200KB) and init map
+    // Load Leaflet JS (tiny — 40KB) and init map
     const initMap = (L: any) => {
       if (cancelled || !mapContainerRef.current) return
       try {
         const map = L.map(mapContainerRef.current, {
           center: [30.0444, 31.2357], // Cairo [lat, lng]
-          zoom: 13,
-          zoomControl: true,
+          zoom: 14,
+          zoomControl: false, // لا أزرار +/-
           attributionControl: false,
         })
 
-        // Use free CARTO tiles (no token, fast CDN, light theme)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        // Talabat-style map: ألوان واضحة، طرق صفراء، خلفية رمادية فاتحة
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
           maxZoom: 19,
           subdomains: 'abcd',
         }).addTo(map)
 
-        // Add driver marker
-        const driverMarker = L.marker([30.0444, 31.2357]).addTo(map)
-        driverMarker.bindPopup('موقعك الحالي').openPopup()
+        // Marker احترافي: دائرة زرقاء مع تأثير ضوئي (مثل Talabat)
+        const driverIcon = L.divIcon({
+          className: 'driver-location-marker',
+          html: `<div style="position:relative;width:24px;height:24px;">
+            <div style="position:absolute;inset:-12px;border-radius:50%;background:rgba(37,99,235,0.2);animation:pulse 2s infinite;"></div>
+            <div style="position:absolute;inset:0;border-radius:50%;background:#2563eb;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>
+          </div>
+          <style>@keyframes pulse{0%{transform:scale(1);opacity:0.6}70%{transform:scale(1.8);opacity:0}100%{opacity:0}}</style>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        })
+
+        const driverMarker = L.marker([30.0444, 31.2357], { icon: driverIcon }).addTo(map)
 
         mapRef.current = map
+        mapRef.current.driverMarker = driverMarker
         setMapReady(true)
         setMapError(null)
 
@@ -125,7 +136,7 @@ export default function DriverPage() {
               if (cancelled || !mapRef.current) return
               const lat = pos.coords.latitude
               const lng = pos.coords.longitude
-              mapRef.current.setView([lat, lng], 14)
+              mapRef.current.setView([lat, lng], 15)
               driverMarker.setLatLng([lat, lng])
             },
             () => {},
@@ -344,9 +355,7 @@ export default function DriverPage() {
                   <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
                   <span className="text-xs font-bold">{isOnline ? 'متصل' : 'غير متصل'}</span>
                 </div>
-                <button onClick={handleLogout} className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
-                  <LogOut className="w-5 h-5 text-gray-700" />
-                </button>
+                <div className="w-10 h-10" /> {/* spacer بدل زر الخروج */}
               </div>
 
               {/* Side buttons (right) */}
