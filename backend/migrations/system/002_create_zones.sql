@@ -4,6 +4,7 @@
 -- financial.pricing_rules.zone_id, financial.surge_zones.zone_id.
 
 -- +goose Up
+CREATE SCHEMA IF NOT EXISTS system;
 CREATE TABLE IF NOT EXISTS system.zones (
     id              VARCHAR(50)   PRIMARY KEY,
     name            VARCHAR(255)  NOT NULL,
