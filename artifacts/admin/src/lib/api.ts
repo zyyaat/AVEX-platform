@@ -98,7 +98,12 @@ export const adminAPI = {
   getOrders: (status?: string) => apiFetch<{ orders: any[] }>(`/orders?status=${status || ''}`).catch(() => ({ orders: [] })),
 
   // Zones (not yet in backend)
-  getZones: () => apiFetch<{ zones: any[] }>('/admin/zones').catch(() => ({ zones: [] })),
+  getZones: () => apiFetch<any>('/admin/zones').then(r => {
+    if (Array.isArray(r)) return r
+    if (r.zones) return r.zones
+    if (r.Items) return r.Items
+    return []
+  }).catch(() => []),
   createZone: (data: any) => apiFetch<{ id: string }>('/admin/zones', { method: 'POST', body: JSON.stringify(data) }),
   updateZone: (id: string, data: any) => apiFetch(`/admin/zones/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteZone: (id: string) => apiFetch(`/admin/zones/${id}`, { method: 'DELETE' }),

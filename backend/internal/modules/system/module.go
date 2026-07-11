@@ -23,7 +23,8 @@ import (
 )
 
 type Module struct {
-        svc port.ServicePort
+        svc  port.ServicePort
+        pool *pgxpool.Pool
 }
 
 func New(cfg *config.Config, pool *pgxpool.Pool, redisClient *redis.Client, maintenance port.MaintenanceChecker) *Module {
@@ -60,13 +61,13 @@ func New(cfg *config.Config, pool *pgxpool.Pool, redisClient *redis.Client, main
         }
 
         svc := service.New(info, checkers, modules, maintenance)
-        return &Module{svc: svc}
+        return &Module{svc: svc, pool: pool}
 }
 
 func (m *Module) Service() port.ServicePort { return m.svc }
 
 func (m *Module) RegisterRoutes(mux *http.ServeMux) {
-        httptransport.RegisterRoutes(mux, m.svc)
+        httptransport.RegisterRoutes(mux, m.svc, m.pool)
 }
 
 func (m *Module) Close() {}

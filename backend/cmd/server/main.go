@@ -6,7 +6,7 @@ import (
         "errors"
         "fmt"
         "net/http"
-	"net/url"
+        "net/url"
         "os"
         "os/signal"
         "syscall"
@@ -133,6 +133,12 @@ func main() {
                 os.Exit(1)
         }
         log.Info("localization migrations complete")
+
+        if err := database.RunUp(ctx, cfg.Database.URL, migrations.SystemMigrations, "system", "system"); err != nil {
+                log.Error("system migrations failed", "error", err)
+                os.Exit(1)
+        }
+        log.Info("system migrations complete")
 
         // 5. Wire modules.
         identityMod := identity.New(cfg, dbPool.Pool(), log)
