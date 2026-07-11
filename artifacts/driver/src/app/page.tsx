@@ -46,7 +46,7 @@ function loadMapbox(): Promise<any> {
 
 export default function DriverHome() {
   const router = useRouter()
-  const { isAuthenticated, userID } = useAuth()
+  const { isAuthenticated, isInitialized, userID } = useAuth()
   const {
     driver, offers, activeOrder, error,
     fetchDriver, setOnline, setOffline,
@@ -89,14 +89,19 @@ export default function DriverHome() {
   })
 
   // ===== Boot =====
+  // CRITICAL: Wait for isInitialized before checking isAuthenticated.
+  // Without this, the route guard fires BEFORE initialize() has a chance
+  // to restore the session from localStorage, causing an immediate redirect
+  // to /login even when the user just logged in.
   useEffect(() => {
+    if (!isInitialized) return  // ← wait for initialize() to complete
     if (!isAuthenticated) {
       router.replace('/login')
       return
     }
     setBootChecked(true)
     fetchDriver()
-  }, [isAuthenticated, router, fetchDriver])
+  }, [isInitialized, isAuthenticated, router, fetchDriver])
 
   // ===== WebSocket subscribe =====
   useEffect(() => {

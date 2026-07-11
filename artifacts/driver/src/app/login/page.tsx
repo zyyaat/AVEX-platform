@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login, isAuthenticated, isLoading, initialize } = useAuth()
+  const { login, isAuthenticated, isInitialized, isLoading, initialize } = useAuth()
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -18,12 +18,20 @@ export default function LoginPage() {
 
   useEffect(() => {
     initialize().then(() => {
+      // Only redirect if initialize confirmed the user is authenticated.
       const s = useAuth.getState()
-      if (s.isAuthenticated) {
+      if (s.isInitialized && s.isAuthenticated) {
         router.replace('/')
       }
     })
   }, [router, initialize])
+
+  // Also handle the case where login() sets isAuthenticated=true directly.
+  useEffect(() => {
+    if (isInitialized && isAuthenticated) {
+      router.replace('/')
+    }
+  }, [isInitialized, isAuthenticated, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

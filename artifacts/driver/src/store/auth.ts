@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { driverAuthAPI, setAuthToken, getAuthToken } from '@/lib/api'
+import { driverAuthAPI, setAuthToken } from '@/lib/api'
 
 interface AuthState {
   token: string | null
@@ -8,6 +8,7 @@ interface AuthState {
   role: string | null
   isLoading: boolean
   isAuthenticated: boolean
+  isInitialized: boolean  // ← NEW: tracks whether initialize() has run
 
   login: (phone: string, password: string) => Promise<void>
   logout: () => void
@@ -22,6 +23,7 @@ export const useAuth = create<AuthState>()(
       role: null,
       isLoading: false,
       isAuthenticated: false,
+      isInitialized: false,  // ← starts false, becomes true after initialize()
 
       login: async (phone, password) => {
         set({ isLoading: true })
@@ -41,6 +43,7 @@ export const useAuth = create<AuthState>()(
             role: 'driver',
             isAuthenticated: true,
             isLoading: false,
+            isInitialized: true,  // ← login counts as initialization
           })
         } catch (err) {
           set({ isLoading: false })
@@ -71,7 +74,9 @@ export const useAuth = create<AuthState>()(
             if (userID) {
               await driverAPI.getDriverByUserID(userID)
               // Token is valid — keep the user logged in.
-              set({ isAuthenticated: true })
+              set({ isAuthenticated: true, isInitialized: true })
+            } else {
+              set({ isInitialized: true })
             }
           } catch (err: any) {
             // Token is invalid or expired — log out gracefully.
@@ -82,8 +87,12 @@ export const useAuth = create<AuthState>()(
               userID: null,
               role: null,
               isAuthenticated: false,
+              isInitialized: true,
             })
           }
+        } else {
+          // No token — mark as initialized so the route guard can proceed.
+          set({ isInitialized: true })
         }
       },
     }),
@@ -94,6 +103,8 @@ export const useAuth = create<AuthState>()(
         userID: state.userID,
         role: state.role,
         isAuthenticated: state.isAuthenticated,
+        // NOTE: isInitialized is NOT persisted — it must be re-evaluated
+        // on every page load by calling initialize().
       }),
     }
   )
