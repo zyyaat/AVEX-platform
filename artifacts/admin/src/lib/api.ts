@@ -115,10 +115,13 @@ export const adminAPI = {
     apiFetch(`/admin/tier-prices/${tierId}/${zoneId}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Drivers (exists in dispatch module)
-  getDrivers: () => apiFetch<{ items: any[]; total: number } | any[]>('/admin/drivers').then(r => {
-    // Handle both Page wrapper and bare array responses
+  getDrivers: () => apiFetch<any>('/admin/drivers').then(r => {
+    // Backend returns {Items: [...], Total: N} (Go struct, capital I)
+    // toCamelCase keeps it as "Items" (no underscore to transform)
+    // So we check all possible key names
     if (Array.isArray(r)) return r
     if (r.items) return r.items
+    if (r.Items) return r.Items
     if ((r as any).drivers) return (r as any).drivers
     return []
   }).catch(() => []),
