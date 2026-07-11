@@ -53,6 +53,13 @@ func actorFromContext(ctx context.Context) *Actor {
         return a
 }
 
+// ActorFromContext is the exported version of actorFromContext.
+// Other modules (orders, dispatch) use this to get the authenticated
+// actor from the JWT context, instead of reading X-Driver-ID headers.
+func ActorFromContext(ctx context.Context) *Actor {
+        return actorFromContext(ctx)
+}
+
 // correlationIDFromContext retrieves the correlation ID from the context.
 func correlationIDFromContext(ctx context.Context) string {
         if v, ok := ctx.Value(ctxKeyCorrelationID).(string); ok {
