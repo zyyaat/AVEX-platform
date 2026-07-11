@@ -1,0 +1,111 @@
+# =============================================================================
+# AVEX Backend — GitLab CI/CD Pipeline
+# =============================================================================
+# Runs on merge requests and pushes to main when backend/** changes.
+#
+# Stages:
+#   1. lint  — go vet + gofmt formatting check
+#   2. test  — all unit tests with race detector (707+ tests)
+#   3. build — build server + worker binaries
+# =============================================================================
+
+stages:
+  - lint
+  - test
+  - build
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+default:
+  image: golang:1.25
+  cache:
+    key:
+      files:
+        - backend/go.sum
+    paths:
+      - .go-cache/
+
+variables:
+  GOPATH: "$CI_PROJECT_DIR/.go-cache"
+  GOFLAGS: "-mod=mod"
+
+.backend-rules: &backend-rules
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+
+lint:
+  stage: lint
+  <<: *backend-rules
+  script:
+    - cd backend
+    - go mod download
+    - go vet ./...
+    - |
+      if [ -n "$(gofmt -l .)" ]; then
+        echo "The following files are not formatted:"
+        gofmt -l .
+        exit 1
+      fi
+
+test:
+  stage: test
+  <<: *backend-rules
+  script:
+    - cd backend
+    - go mod download
+    - go test -race -timeout 120s -count=1 ./...
+
+build:
+  stage: build
+  <<: *backend-rules
+  script:
+    - cd backend
+    - go mod download
+    - go build -o bin/server ./cmd/server
+    - go build -o bin/worker ./cmd/worker
+    - ls -lh bin/
+  artifacts:
+    paths:
+      - backend/bin/
+    expire_in: 1 week
+
+# ===== Frontend tests (Vitest across the pnpm workspace) =====
+frontend-test:
+  stage: test
+  image: node:22
+  cache:
+    key: pnpm-store
+    paths:
+      - .pnpm-store/
+  variables:
+    GOPATH: ""
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - artifacts/**/*
+        - lib/**/*
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - artifacts/**/*
+        - lib/**/*
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+  before_script:
+    - corepack enable
+    - pnpm config set store-dir .pnpm-store
+  script:
+    # TODO: switch to --frozen-lockfile once pnpm-lock.yaml includes vitest/happy-dom
+    - pnpm install --no-frozen-lockfile
+    - pnpm -r --if-present test
