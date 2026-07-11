@@ -77,7 +77,7 @@ export const menuAPI = {
 }
 
 export const ordersAPI = {
-  create: (data: any) => apiFetch<{ order: any }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
+  create: (data: any) => apiFetch<any>('/orders', { method: 'POST', body: JSON.stringify(data) }),
   // FIXED: was '/orders' (admin endpoint), now '/orders/my' (user's orders)
   // Response shape is { items, total } (Page wrapper), not { orders }
   getMyOrders: () => apiFetch<{ items: any[]; total: number }>('/orders/my').catch(() => ({ items: [], total: 0 })),

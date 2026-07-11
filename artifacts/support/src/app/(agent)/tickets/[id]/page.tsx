@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from '@/lib/navigation'
 import { ArrowLeft, Send, User, Phone, Package, Ban, Check, Lock, Loader2, AlertCircle } from 'lucide-react'
 import { agentAPI } from '@/lib/api'
+import { useAuth } from '@/store/auth'
 import { toast } from 'sonner'
 
 const typeLabels: Record<string, string> = { cancellation_request: 'طلب إلغاء', complaint: 'شكوى', other: 'أخرى' }
@@ -33,7 +34,10 @@ export default function TicketDetailPage() {
     if (!body.trim()) return
     setSending(true)
     try {
-      await agentAPI.sendMessage(params.id, body, isInternal)
+      // FIXED: sendMessage now requires agentId parameter (was sending empty string)
+      const agent = useAuth.getState().agent
+      const agentId = agent?.id || agent?.userId || ''
+      await agentAPI.sendMessage(params.id, body, agentId, isInternal)
       setBody('')
       load()
     } catch (e: any) { toast.error(e.message) }

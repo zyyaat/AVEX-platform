@@ -7,6 +7,7 @@ interface AuthState {
   merchant: Merchant | null
   isAuthenticated: boolean
   isLoading: boolean
+  isInitialized: boolean
   mustChangePassword: boolean
 
   login: (phone: string, password: string) => Promise<{ mustChangePassword: boolean }>

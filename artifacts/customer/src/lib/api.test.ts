@@ -61,14 +61,15 @@ describe('apiFetch behaviour', () => {
     expect(options.headers['Authorization']).toBe('Bearer tok-42')
   })
 
-  it('on 401: clears the token and redirects to /?auth=login', async () => {
+  it('on 401: clears the token (no redirect from apiFetch)', async () => {
     setAuthToken('expired')
     fetchMock.mockResolvedValueOnce(mockResponse({ status: 401 }))
 
     await expect(authAPI.me()).rejects.toThrow()
 
+    // Token should be cleared
     expect(getAuthToken()).toBeNull()
-    expect(window.location.href).toContain('/?auth=login')
+    // apiFetch no longer redirects — the auth store handles it via state.
   })
 
   it('extracts the error message from an { error } body', async () => {

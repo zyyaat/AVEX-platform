@@ -61,14 +61,14 @@ describe('apiFetch behaviour', () => {
     expect(options.headers['Authorization']).toBe('Bearer tok-42')
   })
 
-  it('on 401: clears the token and redirects to /login', async () => {
+  it('on 401: clears the token (no redirect from apiFetch)', async () => {
     setAuthToken('expired')
     fetchMock.mockResolvedValueOnce(mockResponse({ status: 401 }))
 
     await expect(agentAPI.assignTicket('t1', 'agent-1')).rejects.toThrow()
 
     expect(getAuthToken()).toBeNull()
-    expect(window.location.href).toContain('/login')
+    // apiFetch no longer redirects — the auth store handles it via state.
   })
 
   it('extracts the error message from an { error } body', async () => {
@@ -79,6 +79,7 @@ describe('apiFetch behaviour', () => {
   it('tickets list falls back gracefully on network failure (no crash)', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network down'))
     const result = await agentAPI.getTickets()
-    expect(result).toEqual({ tickets: [], agentId: '' })
+    // FIXED: getTickets now returns { tickets, total } (was { tickets, agentId })
+    expect(result).toEqual({ tickets: [], total: 0 })
   })
 })

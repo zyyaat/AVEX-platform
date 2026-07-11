@@ -48,7 +48,8 @@ describe('apiFetch behaviour', () => {
     expect(url).toBe('/api/v1/auth/login')
     expect(options.method).toBe('POST')
     expect(result.token).toBe('t1')
-    expect(result.user.is_admin).toBe(true)
+    // After toCamelCase transform, is_admin → isAdmin
+    expect(result.user.isAdmin).toBe(true)
   })
 
   it('sends the Authorization header when a token is set', async () => {
@@ -61,14 +62,16 @@ describe('apiFetch behaviour', () => {
     expect(options.headers['Authorization']).toBe('Bearer tok-42')
   })
 
-  it('on 401: clears the token and redirects to /login', async () => {
+  it('on 401: clears the token (no redirect from apiFetch)', async () => {
     setAuthToken('expired')
     fetchMock.mockResolvedValueOnce(mockResponse({ status: 401 }))
 
     await expect(adminAuthAPI.me()).rejects.toThrow()
 
+    // Token should be cleared
     expect(getAuthToken()).toBeNull()
-    expect(window.location.href).toContain('/login')
+    // apiFetch no longer redirects — the auth store handles it via state.
+    // We just verify the token was cleared.
   })
 
   it('extracts the error message from an { error } body', async () => {

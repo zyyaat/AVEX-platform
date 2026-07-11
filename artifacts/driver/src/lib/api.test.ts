@@ -59,7 +59,8 @@ describe('apiFetch behaviour (via public API methods)', () => {
     expect(url).toBe('/api/v1/auth/driver/login')
     expect(options.method).toBe('POST')
     expect(result.token).toBe('t1')
-    expect(result.must_change_password).toBe(false)
+    // After toCamelCase transform, must_change_password → mustChangePassword
+    expect(result.mustChangePassword).toBe(false)
   })
 
   it('sends the Authorization header when a token is set', async () => {
@@ -73,15 +74,16 @@ describe('apiFetch behaviour (via public API methods)', () => {
     expect(options.headers['Content-Type']).toBe('application/json')
   })
 
-  it('on 401: clears the token, redirects to /login and throws', async () => {
+  it('on 401: clears the token and throws (no redirect from apiFetch)', async () => {
     setAuthToken('expired-token')
     fetchMock.mockResolvedValueOnce(mockResponse({ status: 401 }))
 
     await expect(driverAPI.getDriver('d1')).rejects.toThrow()
 
+    // Token should be cleared
     expect(getAuthToken()).toBeNull()
     expect(localStorage.getItem('avex_driver_token')).toBeNull()
-    expect(window.location.href).toContain('/login')
+    // apiFetch no longer redirects — the auth store handles it via state.
   })
 
   it('extracts the error message from an { error } body on failure', async () => {
