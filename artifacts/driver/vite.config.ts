@@ -40,7 +40,7 @@ export default defineConfig({
   },
   server: {
     port,
-    strictPort: false,  // ← لو الـ port مشغول، Vite يلاقي port تاني
+    strictPort: true,  // ← لو الـ port مشغول، Vite يلاقي port تاني
     host: '0.0.0.0',
     allowedHosts: true,
     fs: {

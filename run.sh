@@ -311,11 +311,13 @@ fi
 export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379/0}"
 
 # -----------------------------------------------------------------------------
-# 5. Kill any stale backend processes
+# 5. Kill any stale processes (backend + frontend Vite dev servers)
 # -----------------------------------------------------------------------------
 log "🧹 Cleaning up stale processes..."
 pkill -f "avex-server" 2>/dev/null || true
 pkill -f "avex-worker" 2>/dev/null || true
+# Kill stale Vite dev servers that may be holding artifact ports
+pkill -f "vite.*--config" 2>/dev/null || true
 sleep 1
 
 # -----------------------------------------------------------------------------

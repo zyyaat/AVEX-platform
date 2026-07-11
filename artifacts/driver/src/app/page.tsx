@@ -17,23 +17,18 @@ export default function DriverPage() {
   const [authError, setAuthError] = useState('')
   const [toggling, setToggling] = useState(false)
   const [driverLoaded, setDriverLoaded] = useState(false)
-  const [hydrated, setHydrated] = useState(false)
 
-  // Wait for Zustand persist to hydrate from localStorage
-  // This prevents the login screen from flashing before the token is restored
+  // Restore session on mount
   useEffect(() => {
     initialize()
-    // Give persist middleware time to hydrate (it's async)
-    const timer = setTimeout(() => setHydrated(true), 100)
-    return () => clearTimeout(timer)
   }, [])
 
   // Fetch driver data when authenticated
   useEffect(() => {
-    if (isAuthenticated && userID && !driverLoaded && hydrated) {
+    if (isAuthenticated && userID && !driverLoaded) {
       fetchDriver().finally(() => setDriverLoaded(true))
     }
-  }, [isAuthenticated, userID, driverLoaded, fetchDriver, hydrated])
+  }, [isAuthenticated, userID, driverLoaded, fetchDriver])
 
   // Reset driverLoaded when user logs out
   useEffect(() => {
@@ -83,15 +78,6 @@ export default function DriverPage() {
     setPhone('')
     setPassword('')
     toast.success('تم تسجيل الخروج')
-  }
-
-  // ===== LOADING SCREEN (only during hydration) =====
-  if (!hydrated) {
-    return (
-      <div className="min-h-dvh flex items-center justify-center bg-white">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-      </div>
-    )
   }
 
   // ===== LOGIN SCREEN =====
