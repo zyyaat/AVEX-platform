@@ -30,9 +30,14 @@ export const useAuth = create<AuthState>()(
         set({ isLoading: true })
         try {
           const result = await merchantAuthAPI.login({ phone, password })
-    const { token } = result
-    const mustChangePassword = result.must_change_password ?? false
-    const merchant = result.user || result.merchant
+          // After toCamelCase transform, fields are camelCase.
+          // Backend returns { token, user, must_change_password }.
+          // We store the user object as 'merchant' (backend doesn't have
+          // a separate merchant login endpoint yet — user with merchant
+          // role is used).
+          const { token } = result
+          const mustChangePassword = (result as any).mustChangePassword ?? false
+          const merchant = result.user || (result as any).merchant
           setAuthToken(token)
           set({
             token,
@@ -40,6 +45,7 @@ export const useAuth = create<AuthState>()(
             mustChangePassword,
             isAuthenticated: true,
             isLoading: false,
+            isInitialized: true,
           })
           return { mustChangePassword }
         } catch (e) {

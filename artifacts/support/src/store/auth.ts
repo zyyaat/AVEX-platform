@@ -22,10 +22,15 @@ export const useAuth = create<AuthState>()(
         set({ isLoading: true })
         try {
           const result = await agentAuthAPI.login({ phone, password })
-    const { token } = result
-    const agent = result.user || result.agent
+          // After toCamelCase transform, fields are camelCase.
+          // Backend returns { token, user, must_change_password }.
+          // We store the user object as 'agent' (backend doesn't have
+          // a separate agent login endpoint yet — user with agent role
+          // is used).
+          const { token } = result
+          const agent = result.user || (result as any).agent
           setAuthToken(token)
-          set({ token, agent, isAuthenticated: true, isLoading: false })
+          set({ token, agent, isAuthenticated: true, isLoading: false, isInitialized: true })
         } catch (e) { set({ isLoading: false }); throw e }
       },
       logout: () => { setAuthToken(null); set({ token: null, agent: null, isAuthenticated: false }) },
@@ -36,6 +41,7 @@ export const useAuth = create<AuthState>()(
           try { const a = await agentAuthAPI.me(); set({ agent: a, isAuthenticated: true }) }
           catch { setAuthToken(null); set({ token: null, isAuthenticated: false }) }
         }
+        set({ isInitialized: true })
       },
     }),
     { name: 'avex-agent-auth', partialize: (s) => ({ token: s.token, agent: s.agent, isAuthenticated: s.isAuthenticated }) }

@@ -60,16 +60,36 @@ export const agentAPI = {
   getStats: () => apiFetch<any>('/admin/dashboard').catch(() => ({
     openTickets: 0, assignedTickets: 0, resolvedToday: 0, avgResponseTime: 0,
   })),
+  // FIXED: backend returns { items, total, limit, offset } (Page wrapper),
+  // not { tickets }. We map items → tickets for the frontend.
   getTickets: (filter: string = '') =>
-    apiFetch<{ tickets: any[]; agentId?: string }>(`/support/tickets${filter ? `?status=${filter}` : ''}`).catch(() => ({ tickets: [], agentId: '' })),
-  getTicket: (id: string) =>
-    apiFetch<{ ticket: any; messages: any[] }>(`/support/tickets/${id}`).catch(() => ({ ticket: null, messages: [] })),
+    apiFetch<{ items: any[]; total: number; limit?: number; offset?: number }>(`/support/tickets${filter ? `?status=${filter}` : ''}`)
+      .then((r) => ({ tickets: r.items || [], total: r.total || 0 }))
+      .catch(() => ({ tickets: [], total: 0 })),
+  // FIXED: backend returns a single TicketDTO (not { ticket, messages }).
+  // We need to fetch messages separately.
+  getTicket: async (id: string): Promise<{ ticket: any; messages: any[] }> => {
+    try {
+      const ticket = await apiFetch<any>(`/support/tickets/${id}`)
+      let messages: any[] = []
+      try {
+        const msgResult = await apiFetch<{ items: any[]; total: number }>(`/support/tickets/${id}/messages`)
+        messages = msgResult.items || []
+      } catch {}
+      return { ticket, messages }
+    } catch {
+      return { ticket: null, messages: [] }
+    }
+  },
+  // assignTicket: send the agent's user ID (from JWT subject)
   assignTicket: (id: string, agentId: string = '') =>
     apiFetch<{ success: boolean }>(`/support/tickets/${id}/assign`, { method: 'POST', body: JSON.stringify({ agent_id: agentId }) }),
   setPriority: (id: string, priority: string) =>
     apiFetch(`/support/tickets/${id}/priority`, { method: 'POST', body: JSON.stringify({ priority }) }),
-  sendMessage: (id: string, body: string, isInternal: boolean = false) =>
-    apiFetch<{ id: string }>(`/support/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ sender_type: isInternal ? 'internal' : 'agent', sender_id: '', body }) }),
+  // FIXED: sender_id should be the agent's ID, not empty string.
+  // The caller should pass the agent ID from the auth store.
+  sendMessage: (id: string, body: string, agentId: string, isInternal: boolean = false) =>
+    apiFetch<{ id: string }>(`/support/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ sender_type: isInternal ? 'internal' : 'agent', sender_id: agentId, body }) }),
   resolveTicket: (id: string, notes: string) =>
     apiFetch(`/support/tickets/${id}/close`, { method: 'POST', body: JSON.stringify({ closed_by: 'agent', reason: notes }) }),
   cancelOrder: (id: string) =>
