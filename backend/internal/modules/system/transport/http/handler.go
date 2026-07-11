@@ -126,18 +126,24 @@ func (h *Handler) ListZones(w http.ResponseWriter, r *http.Request) {
         }
         defer rows.Close()
 
-        zones := []map[string]any{}
+        type zoneRow struct {
+                ID             string                 `json:"id"`
+                Name           string                 `json:"name"`
+                NameAr         *string                `json:"name_ar,omitempty"`
+                CenterLat      float64                `json:"center_lat"`
+                CenterLng      float64                `json:"center_lng"`
+                RadiusM        int                    `json:"radius_m"`
+                PolygonGeojson *string                `json:"polygon_geojson,omitempty"`
+                IsActive       bool                   `json:"is_active"`
+                CreatedAt      time.Time              `json:"created_at"`
+                UpdatedAt      time.Time              `json:"updated_at"`
+        }
+
+        zones := []zoneRow{}
         for rows.Next() {
-                var z map[string]any = map[string]any{}
-                var nameAr, polygonGeojson *string
-                if err := rows.Scan(&z["id"], &z["name"], &nameAr, &z["center_lat"], &z["center_lng"], &z["radius_m"], &polygonGeojson, &z["is_active"], &z["created_at"], &z["updated_at"]); err != nil {
+                var z zoneRow
+                if err := rows.Scan(&z.ID, &z.Name, &z.NameAr, &z.CenterLat, &z.CenterLng, &z.RadiusM, &z.PolygonGeojson, &z.IsActive, &z.CreatedAt, &z.UpdatedAt); err != nil {
                         continue
-                }
-                if nameAr != nil {
-                        z["name_ar"] = *nameAr
-                }
-                if polygonGeojson != nil {
-                        z["polygon_geojson"] = *polygonGeojson
                 }
                 zones = append(zones, z)
         }
