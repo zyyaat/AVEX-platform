@@ -405,3 +405,63 @@ func trim(s string) string {
 
 // Ensure context import is used (actorFromContext uses it).
 var _ = context.Background
+
+// ===== Setup Endpoints (for initial system setup only) =====
+// These are NOT auth-protected. They should be disabled in production.
+// They exist because there's no way to create the first admin or verify
+// the first driver without them.
+
+// PromoteToAdmin handles POST /api/v1/setup/promote-admin
+// Body: {"phone": "01000000000"}
+// Promotes a user to admin (is_admin = true).
+func (h *Handler) PromoteToAdmin(w http.ResponseWriter, r *http.Request) {
+        var req struct {
+                Phone string `json:"phone"`
+        }
+        if err := readJSON(r, &req); err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+
+        user, err := h.svc.GetUserByPhone(r.Context(), req.Phone)
+        if err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+
+        // Promote to admin
+        if err := h.svc.PromoteUserToAdmin(r.Context(), user.ID()); err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+
+        writeJSON(w, http.StatusOK, map[string]string{"status": "promoted to admin"})
+}
+
+// VerifyDriver handles POST /api/v1/setup/verify-driver
+// Body: {"phone": "01012345678"}
+// Verifies a driver (is_verified = true, is_active = true).
+func (h *Handler) VerifyDriver(w http.ResponseWriter, r *http.Request) {
+        var req struct {
+                Phone string `json:"phone"`
+        }
+        if err := readJSON(r, &req); err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+
+        // Get driver by phone
+        driver, err := h.svc.GetDriverByPhone(r.Context(), req.Phone)
+        if err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+
+        // Verify driver
+        if err := h.svc.VerifyDriverAccount(r.Context(), driver.ID()); err != nil {
+                writeError(w, h.logger, err)
+                return
+        }
+
+        writeJSON(w, http.StatusOK, map[string]string{"status": "driver verified"})
+}

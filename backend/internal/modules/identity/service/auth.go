@@ -152,8 +152,13 @@ func (s *Service) LoginUser(ctx context.Context, input port.LoginInput) (*port.A
         var token string
         var sessionID string
         err = s.deps.TxRunner.RunInTx(ctx, func(ctx context.Context, exec port.Executor) error {
+                // Determine role: admin users get "admin" role, others get "user".
+                role := domain.RoleUser
+                if user.IsAdmin() {
+                        role = domain.RoleAdmin
+                }
                 // Create session + issue JWT.
-                sid, t, err := s.createSessionAndToken(ctx, exec, user.ID(), domain.RoleUser, input.IP, input.Agent)
+                sid, t, err := s.createSessionAndToken(ctx, exec, user.ID(), role, input.IP, input.Agent)
                 if err != nil {
                         return err
                 }

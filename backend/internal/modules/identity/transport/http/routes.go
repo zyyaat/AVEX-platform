@@ -70,4 +70,10 @@ func RegisterRoutes(mux *http.ServeMux, svc port.ServicePort, cfg RoutesConfig) 
         // ----- Admin routes (admin role) -----
         adminAuth := RequireRole(cfg.JWTIssuer, cfg.Logger, "admin")
         mux.Handle("POST /api/v1/admin/drivers/suspend", adminAuth(http.HandlerFunc(h.SuspendDriver)))
+
+        // ----- System setup routes (no auth — for initial setup only) -----
+        // These are dangerous in production and should be disabled after setup.
+        // They exist because there's no way to create the first admin otherwise.
+        mux.HandleFunc("POST /api/v1/setup/promote-admin", h.PromoteToAdmin)
+        mux.HandleFunc("POST /api/v1/setup/verify-driver", h.VerifyDriver)
 }

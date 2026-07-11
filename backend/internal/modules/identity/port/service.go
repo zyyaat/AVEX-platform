@@ -234,4 +234,18 @@ type ServicePort interface {
         // a hash is needed without going through the full register flow (e.g.
         // seeding, admin-created accounts).
         HashPassword(ctx context.Context, password string) (string, error)
+
+        // ----- Setup (for initial system setup) -----
+
+        // GetUserByPhone retrieves a user by phone number (string).
+        GetUserByPhone(ctx context.Context, phone string) (*UserDTO, error)
+
+        // GetDriverByPhone retrieves a driver by phone number (string).
+        GetDriverByPhone(ctx context.Context, phone string) (*DriverProfileDTO, error)
+
+        // PromoteUserToAdmin sets is_admin=true for the given user.
+        PromoteUserToAdmin(ctx context.Context, userID string) error
+
+        // VerifyDriverAccount sets is_verified=true and is_active=true for the given driver.
+        VerifyDriverAccount(ctx context.Context, driverID string) error
 }

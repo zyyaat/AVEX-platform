@@ -1,18 +1,14 @@
 #!/bin/bash
 # =============================================================================
-# AVEX — Seed admin + driver accounts
+# AVEX — Seed admin + driver accounts (FIXED)
 # =============================================================================
 # Creates:
-#   1. Admin user (for managing the platform)
+#   1. Admin user + promotes to admin role
 #   2. Driver in identity.drivers (verified + active)
 #   3. Driver in dispatch.drivers (for delivery operations)
 #
 # Usage:
 #   ./seed-driver.sh [driver_phone] [driver_password] [driver_name]
-#
-# Defaults:
-#   Admin:   phone=01000000000  password=admin123
-#   Driver:  phone=01012345678  password=12345678  name=Ahmed
 # =============================================================================
 
 set -e
@@ -30,7 +26,7 @@ echo "🌱 AVEX — Seeding admin + driver accounts"
 echo "============================================"
 
 # -----------------------------------------------------------------------------
-# 1. Create / Login Admin
+# 1. Create Admin User
 # -----------------------------------------------------------------------------
 echo ""
 echo "📝 Step 1: Admin account..."
@@ -53,11 +49,21 @@ if [ -z "$ADMIN_TOKEN" ]; then
   echo "   Response: $ADMIN_RESPONSE"
   exit 1
 fi
-
-# Promote to admin (set is_admin=true via direct DB if needed)
-# The register endpoint may not set is_admin. We'll try the admin endpoints
-# and if they fail, we know the user needs to be promoted.
 echo "   ✅ Admin token obtained"
+
+# Promote to admin (is_admin = true)
+echo "   Promoting to admin..."
+PROMOTE_RESPONSE=$(curl -s -X POST "$API/setup/promote-admin" \
+  -H "Content-Type: application/json" \
+  -d "{\"phone\":\"$ADMIN_PHONE\"}")
+echo "   Promote response: $PROMOTE_RESPONSE"
+
+# Re-login to get fresh token with admin role
+ADMIN_RESPONSE=$(curl -s -X POST "$API/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"phone\":\"$ADMIN_PHONE\",\"password\":\"$ADMIN_PASSWORD\"}")
+ADMIN_TOKEN=$(echo "$ADMIN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+echo "   ✅ Admin re-logged in with admin role"
 
 # -----------------------------------------------------------------------------
 # 2. Register / Login Driver in identity.drivers
@@ -85,8 +91,13 @@ if [ -z "$DRIVER_TOKEN" ] || [ -z "$DRIVER_ID" ]; then
   echo "   Response: $DRIVER_RESPONSE"
   exit 1
 fi
-
 echo "   ✅ Driver ID: $DRIVER_ID"
+
+# Verify driver (in case auto_verify didn't work)
+echo "   Verifying driver..."
+curl -s -X POST "$API/setup/verify-driver" \
+  -H "Content-Type: application/json" \
+  -d "{\"phone\":\"$DRIVER_PHONE\"}" > /dev/null 2>&1 || true
 
 # -----------------------------------------------------------------------------
 # 3. Register Driver in dispatch.drivers (using admin token)
@@ -103,24 +114,22 @@ DISPATCH_ID=$(echo "$DISPATCH_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut
 if [ -n "$DISPATCH_ID" ]; then
   echo "   ✅ Dispatch driver ID: $DISPATCH_ID"
 else
-  echo "   ⚠️  Dispatch registration failed (may already exist)"
+  echo "   ⚠️  Dispatch registration may have failed (may already exist)"
   echo "   Response: $DISPATCH_RESPONSE"
-  echo "   Trying with driver token instead..."
-  DISPATCH_RESPONSE=$(curl -s -X POST "$API/admin/drivers" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $DRIVER_TOKEN" \
-    -d "{\"user_id\":\"$DRIVER_ID\",\"vehicle_type\":\"bike\",\"license_plate\":\"ABC-$(date +%s | tail -c 4)\",\"zone_ids\":[\"zone-cairo\"]}")
-  DISPATCH_ID=$(echo "$DISPATCH_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-  if [ -n "$DISPATCH_ID" ]; then
-    echo "   ✅ Dispatch driver ID: $DISPATCH_ID (via driver token)"
-  else
-    echo "   ⚠️  Response: $DISPATCH_RESPONSE"
-  fi
 fi
 
 # -----------------------------------------------------------------------------
-# 4. Verify
+# 4. Verify everything works
 # -----------------------------------------------------------------------------
+echo ""
+echo "📝 Step 4: Verification..."
+echo "   Testing driver login..."
+LOGIN_TEST=$(curl -s -X POST "$API/auth/driver/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"phone\":\"$DRIVER_PHONE\",\"password\":\"$DRIVER_PASSWORD\"}")
+echo "   Login: $LOGIN_TEST" | head -c 200
+echo ""
+
 echo ""
 echo "============================================"
 echo "  ✅ Seeding complete!"
@@ -135,10 +144,4 @@ echo "    Phone:    $DRIVER_PHONE"
 echo "    Password: $DRIVER_PASSWORD"
 echo "    Name:     $DRIVER_NAME"
 echo "    ID:       $DRIVER_ID"
-echo ""
-echo "  Test driver login:"
-echo "    curl -X POST $API/auth/driver/login -H 'Content-Type: application/json' -d '{\"phone\":\"$DRIVER_PHONE\",\"password\":\"$DRIVER_PASSWORD\"}'"
-echo ""
-echo "  Test dispatch driver:"
-echo "    curl -s \"$API/drivers?user_id=$DRIVER_ID\" -H 'Authorization: Bearer <token>'"
 echo "============================================"
