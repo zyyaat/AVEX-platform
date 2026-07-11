@@ -153,7 +153,7 @@ export const adminAPI = {
   rejectApplication: (id: string, reason: string) => apiFetch(`/admin/driver-applications/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }) }),
 
   // Restaurants (exists in catalog module)
-  getRestaurants: () => apiFetch<any>('/admin/restaurants?all=true').then(r => {
+  getRestaurants: () => apiFetch<any>('/restaurants?all=true').then(r => {
     if (Array.isArray(r)) return r
     if (r.Items) return r.Items
     if (r.items) return r.items
