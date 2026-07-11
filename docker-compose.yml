@@ -1,0 +1,182 @@
+# =============================================================================
+# AVEX Platform — docker-compose for local development
+# =============================================================================
+# Brings up the full stack: PostgreSQL + Redis + backend (server) + backend
+# (worker) + all 5 frontend apps behind nginx.
+#
+# Usage:
+#   docker compose up -d                    # start everything
+#   docker compose up -d postgres redis     # start infra only
+#   docker compose logs -f backend-server   # tail server logs
+#   docker compose down -v                  # stop + delete volumes
+#
+# Endpoints after `up`:
+#   - PostgreSQL:     localhost:5432  (avex/avex)
+#   - Redis:          localhost:6379
+#   - Backend API:    http://localhost:8080
+#   - Driver app:     http://localhost:3001
+#   - Customer app:   http://localhost:3002
+#   - Admin app:      http://localhost:3003
+#   - Merchant app:   http://localhost:3004
+#   - Support app:    http://localhost:3005
+# =============================================================================
+
+services:
+  # ===== Infrastructure =====
+  postgres:
+    image: postgres:16-alpine
+    container_name: avex-postgres
+    environment:
+      POSTGRES_USER: avex
+      POSTGRES_PASSWORD: avex
+      POSTGRES_DB: avex_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avex -d avex_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: avex-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ===== Backend =====
+  backend-server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: avex-backend-server
+    environment:
+      APP_ROLE: server
+      DATABASE_URL: "postgres://avex:avex@postgres:5432/avex_dev?sslmode=disable"
+      REDIS_URL: "redis://redis:6379/0"
+      JWT_SECRET: "local-dev-secret-change-me-32-chars-xxx"
+      JWT_ISSUER: "avex"
+      APP_PORT: "8080"
+      APP_ENV: "development"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: avex-backend-worker
+    environment:
+      APP_ROLE: worker
+      DATABASE_URL: "postgres://avex:avex@postgres:5432/avex_dev?sslmode=disable"
+      REDIS_URL: "redis://redis:6379/0"
+      JWT_SECRET: "local-dev-secret-change-me-32-chars-xxx"
+      JWT_ISSUER: "avex"
+      APP_ENV: "development"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ===== Frontend apps =====
+  # Each app runs nginx serving the built SPA, with /api/* proxied to backend-server.
+  driver:
+    build:
+      context: .
+      dockerfile: artifacts/driver/Dockerfile
+      args:
+        APP_NAME: driver
+    container_name: avex-driver
+    environment:
+      BACKEND_HOST: backend-server
+    ports:
+      - "3001:80"
+    depends_on:
+      backend-server:
+        condition: service_healthy
+
+  customer:
+    build:
+      context: .
+      dockerfile: artifacts/customer/Dockerfile
+      args:
+        APP_NAME: customer
+    container_name: avex-customer
+    environment:
+      BACKEND_HOST: backend-server
+    ports:
+      - "3002:80"
+    depends_on:
+      backend-server:
+        condition: service_healthy
+
+  admin:
+    build:
+      context: .
+      dockerfile: artifacts/admin/Dockerfile
+      args:
+        APP_NAME: admin
+    container_name: avex-admin
+    environment:
+      BACKEND_HOST: backend-server
+    ports:
+      - "3003:80"
+    depends_on:
+      backend-server:
+        condition: service_healthy
+
+  merchant:
+    build:
+      context: .
+      dockerfile: artifacts/merchant/Dockerfile
+      args:
+        APP_NAME: merchant
+    container_name: avex-merchant
+    environment:
+      BACKEND_HOST: backend-server
+    ports:
+      - "3004:80"
+    depends_on:
+      backend-server:
+        condition: service_healthy
+
+  support:
+    build:
+      context: .
+      dockerfile: artifacts/support/Dockerfile
+      args:
+        APP_NAME: support
+    container_name: avex-support
+    environment:
+      BACKEND_HOST: backend-server
+    ports:
+      - "3005:80"
+    depends_on:
+      backend-server:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

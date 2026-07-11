@@ -70,8 +70,9 @@ USER avex
 EXPOSE 8080
 
 # Health check (only meaningful for the server role)
+# The server exposes /api/healthz and /api/health endpoints.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/health/live || exit 1
+    CMD curl -f http://localhost:8080/api/healthz || exit 1
 
 # The APP_ROLE env var determines which binary to run.
 # Default to "server" if not set.

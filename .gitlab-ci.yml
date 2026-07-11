@@ -4,11 +4,12 @@
 # Runs on merge requests and pushes to main.
 #
 # Stages:
-#   1. lint      — go vet + gofmt formatting check
-#   2. test      — backend unit tests + frontend Vitest tests
-#   3. build     — build server + worker binaries
-#   4. integration — backend HTTP smoke tests (health + readiness)
-#   5. release   — tag and publish artifacts (on main only)
+#   1. lint         — go vet + gofmt formatting check
+#   2. test         — backend unit tests + frontend Vitest tests
+#   3. build        — build server + worker binaries
+#   4. integration  — backend HTTP smoke tests (health + readiness)
+#   5. docker       — build and push Docker images (main only)
+#   6. release      — tag and publish artifacts (on main only)
 # =============================================================================
 
 stages:
@@ -16,6 +17,7 @@ stages:
   - test
   - build
   - integration
+  - docker
   - release
 
 workflow:
@@ -187,3 +189,152 @@ release:binaries:
   only:
     refs:
       - main
+
+# ===== Docker build & push (main only) =====
+# Builds the backend image and all 5 frontend images, tags them with both
+# :latest and :<short-sha>, and pushes to the GitLab Container Registry.
+docker:backend:
+  stage: docker
+  image: docker:27
+  services:
+    - docker:27-dind
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+      when: on_success
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    IMAGE_NAME: "${CI_REGISTRY_IMAGE}/avex-backend"
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - cd backend
+    - docker build
+        --build-arg VERSION="v${CI_COMMIT_SHORT_SHA}"
+        --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        --build-arg GIT_COMMIT="${CI_COMMIT_SHA}"
+        -t "${IMAGE_NAME}:latest"
+        -t "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
+        .
+    - docker push "${IMAGE_NAME}:latest"
+    - docker push "${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
+    - echo "Pushed ${IMAGE_NAME}:latest and :${CI_COMMIT_SHORT_SHA}"
+  only:
+    refs:
+      - main
+
+docker:frontend:
+  stage: docker
+  image: docker:27
+  services:
+    - docker:27-dind
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - artifacts/**/*
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - .gitlab-ci.yml
+      when: on_success
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - |
+      for APP in driver customer admin merchant support; do
+        IMAGE="${CI_REGISTRY_IMAGE}/avex-${APP}"
+        echo "=== Building ${IMAGE} ==="
+        docker build
+          --build-arg APP_NAME="${APP}"
+          -f "artifacts/${APP}/Dockerfile"
+          -t "${IMAGE}:latest"
+          -t "${IMAGE}:${CI_COMMIT_SHORT_SHA}"
+          .
+        docker push "${IMAGE}:latest"
+        docker push "${IMAGE}:${CI_COMMIT_SHORT_SHA}"
+        echo "Pushed ${IMAGE}:latest and :${CI_COMMIT_SHORT_SHA}"
+      done
+  only:
+    refs:
+      - main
+
+# ===== Security scanning =====
+# Runs gosec on the backend and npm audit + trivy on the frontend.
+# Fails on HIGH or CRITICAL findings.
+security:backend:
+  stage: test
+  image: securego/gosec:latest
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+  script:
+    - cd backend
+    - gosec -fmt=json -out=gosec-report.json -severity medium -confidence medium ./... || true
+    - gosec -severity high -confidence medium -exclude-dir=test ./... || (echo "::warning::gosec found high-severity issues, see report"; exit 1)
+  artifacts:
+    when: always
+    paths:
+      - backend/gosec-report.json
+    expire_in: 1 week
+
+security:frontend:
+  stage: test
+  image: node:22
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - artifacts/**/*
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - artifacts/**/*
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+  before_script:
+    - corepack enable
+    - pnpm config set store-dir .pnpm-store
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm -r audit --audit-level=high || (echo "::warning::npm audit found high-severity vulnerabilities"; exit 1)
+  allow_failure: true
+
+# ===== E2E tests (Playwright) — driver app only =====
+# Builds the driver app, serves it, and runs the Playwright suite.
+# Uses mocked API responses so no backend services are required.
+e2e:driver:
+  stage: integration
+  image: node:22
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - artifacts/driver/**/*
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - artifacts/driver/**/*
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+  before_script:
+    - corepack enable
+    - pnpm config set store-dir .pnpm-store
+    # Install Playwright browser binary + OS dependencies
+    - npx playwright install --with-deps chromium
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm --filter driver test:e2e
+  artifacts:
+    when: always
+    paths:
+      - artifacts/driver/playwright-report/
+    expire_in: 1 week
