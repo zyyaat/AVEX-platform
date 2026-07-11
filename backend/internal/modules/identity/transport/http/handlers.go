@@ -430,7 +430,7 @@ func (h *Handler) PromoteToAdmin(w http.ResponseWriter, r *http.Request) {
         }
 
         // Promote to admin
-        if err := h.svc.PromoteUserToAdmin(r.Context(), user.ID()); err != nil {
+        if err := h.svc.PromoteUserToAdmin(r.Context(), user.ID); err != nil {
                 writeError(w, h.logger, err)
                 return
         }
@@ -458,7 +458,7 @@ func (h *Handler) VerifyDriver(w http.ResponseWriter, r *http.Request) {
         }
 
         // Verify driver
-        if err := h.svc.VerifyDriverAccount(r.Context(), driver.ID()); err != nil {
+        if err := h.svc.VerifyDriverAccount(r.Context(), driver.ID); err != nil {
                 writeError(w, h.logger, err)
                 return
         }
